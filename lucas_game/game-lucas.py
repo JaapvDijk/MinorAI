@@ -402,10 +402,10 @@ while run_code:
     textsurface = myfont.render("generation: " + str(ga.current_generation), False, WHITE)
     screen.blit(textsurface,(20,20))
     
-    textsurface = myfont.render("total fitness: " + str(ga.last_fitness), False, WHITE)
+    textsurface = myfont.render("last total fitness: " + str(ga.last_fitness), False, WHITE)
     screen.blit(textsurface,(20,50))
 
-    textsurface = myfont.render("total finished: " + str(ga.last_finished), False, WHITE)
+    textsurface = myfont.render("last total finished: " + str(ga.last_finished), False, WHITE)
     screen.blit(textsurface,(20,80))
 
     if time.time() - start_time > 15:
