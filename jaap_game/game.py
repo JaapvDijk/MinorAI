@@ -114,7 +114,7 @@ class Car():
         self.angle = 90
         self.vel = 15
         
-        self.image = pg.image.load("images/cars/"+car_img+".png")
+        self.image = pg.image.load("jaap_game/images/cars/"+car_img+".png")
         self.rect = self.image.get_rect()
         self.rect.center = self.x, self.y
         self.arms = []
@@ -124,8 +124,8 @@ class Car():
         self.can_drive = True
         self.is_crashed = False
         self.colour = colour
-        self.explosion_sheet = Sprite(pg.image.load("images/explosion.png"), 200, 240, 0, False)
-        self.fire_sheet = Sprite(pg.image.load("images/fire.png"), 20, 20, 0, True)
+        self.explosion_sheet = Sprite(pg.image.load("jaap_game/images/explosion.png"), 200, 240, 0, False)
+        self.fire_sheet = Sprite(pg.image.load("jaap_game/images/fire.png"), 20, 20, 0, True)
 
         self.current_checkpoint_nr = 0
         self.nr_of_wrong_checkpoints = 0
@@ -332,7 +332,7 @@ class GA():
         child.brain.weights1[random_index] = random.random()
         child.brain.weights2[random_index2] = random.random()
         child.colour = pg.Color(1,255,1)
-        child.image = pg.image.load("images/cars/car3.png")
+        child.image = pg.image.load("jaap_game/images/cars/car3.png")
         return child
 
     def best_to_new_pop(self, amount):
