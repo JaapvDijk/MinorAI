@@ -226,21 +226,21 @@ class Player(object):
 
         self.arms = []
 
-        self.right_arm = Arm()
-        self.right_arm.add_sensors(10,315,5, self.rect.x, self.rect.y)
-        self.arms.append(self.right_arm)
-
-        self.right_right_arm = Arm()
-        self.right_right_arm.add_sensors(10,270,5, self.rect.x, self.rect.y)
-        self.arms.append(self.right_right_arm)
-
         self.left_arm = Arm()
-        self.left_arm.add_sensors(10,45,5, self.rect.x, self.rect.y)
+        self.left_arm.add_sensors(10,315,5, self.rect.x, self.rect.y)
         self.arms.append(self.left_arm)
-        
+
         self.left_left_arm = Arm()
-        self.left_left_arm.add_sensors(10,90,5, self.rect.x, self.rect.y)
+        self.left_left_arm.add_sensors(10,270,5, self.rect.x, self.rect.y)
         self.arms.append(self.left_left_arm)
+
+        self.right_arm = Arm()
+        self.right_arm.add_sensors(10,45,5, self.rect.x, self.rect.y)
+        self.arms.append(self.right_arm)
+        
+        self.right_right_arm = Arm()
+        self.right_right_arm.add_sensors(10,90,5, self.rect.x, self.rect.y)
+        self.arms.append(self.right_right_arm)
 
         self.forward_arm = Arm()
         self.forward_arm.add_sensors(10,0,5, self.rect.x, self.rect.y)
