@@ -3,6 +3,9 @@ import math
 import random
 import numpy as np
 import time
+import datetime
+import matplotlib.pyplot as plt
+import os
 
 pg.init()
 
@@ -16,11 +19,66 @@ screen = pg.display.set_mode((screen_width, screen_height))
 def sigmoid(s):
         return 1/(1+np.exp(-s))
 
+def relu(s):
+   return np.maximum(0,s)
+
+def softmax(s):
+    expo = np.exp(s)
+    expo_sum = np.sum(np.exp(s))
+    return expo/expo_sum
+
 def check_rect_collision(rect, objects):
     for i in range(len(objects)):
         if rect.colliderect(objects[i]):
             return i
     return -1
+
+def draw_walls(walls):
+    for wall in walls:
+        pg.draw.rect(screen, wall.colour, [wall.rect.x, wall.rect.y, wall.rect.width, wall.rect.height])
+
+def draw_checkpoints(checkpoints):
+    for checkpoint in checkpoints:
+        pg.draw.rect(screen, checkpoint.colour, [checkpoint.x, checkpoint.y, checkpoint.rect.width, checkpoint.rect.height])
+        pg.draw.rect(screen, (255,255,50), [checkpoint.focus_point[0], checkpoint.focus_point[1], 5, 5])
+        screen.blit(font.render(str(checkpoint.nr), 1, (0,0,0)),(checkpoint.focus_point[0],checkpoint.focus_point[1]))
+
+def handle_user_car(keys, user_car):
+    user_car.handle_user_input(keys)
+    user_car.set_current_checkpoint_and_distance(checkpoints)
+    user_car.set_and_draw_sonar_arms(nr_arms = 3, arms_scan_range = 80, number_of_points = 15, distance = 8, size = 4)
+    user_car.rotate_blit()
+
+def show_stats_plot():
+    fig, axs = plt.subplots(3)
+
+    axs[0].plot(range(len(fastest_finish_times)), fastest_finish_times, label='Fastest finish time')
+    axs[0].xlabel = "Generation"
+    axs[0].ylabel = "Fastest time"
+
+    axs[1].plot(range(len(total_pop_fitness)), total_pop_fitness, label='Total population fitness')
+    axs[1].xlabel = "Generation"
+    axs[1].ylabel = "Total pop fit"
+
+    axs[2].plot(range(len(total_pop_fitness)), total_pop_fitness, label='Total population fitness')
+    axs[2].plot(range(len(fastest_finish_times)), fastest_finish_times, label='Fastest finish time')
+    axs[2].xlabel = "Generation"
+    axs[2].ylabel = "Tot fit vs fastest time"
+
+    plt.legend()
+    plt.show()
+
+def save_fastest_car_to_file(ga):
+    if not os.path.exists(weights_directory):
+        os.makedirs(weights_directory)
+
+    file_name = 'gen=' + str(total_gens) + ' time=' + str(ga.fastest_car.finish_time) + ' id=' + str(ga.fastest_car.id)
+
+    text_file = open(weights_directory+file_name+".txt", "w")
+    text_file.write("weights1" + "self.weights1 = np.array("+ str(ga.fastest_car.brain.weights1.reshape((ga.fastest_car.brain.nr_of_inputs, 5))) +")")
+    text_file.write("weights2"+ "self.weights2 = np.array("+ str(ga.fastest_car.brain.weights2.reshape((5, ga.fastest_car.brain.nr_of_outputs))) +")")
+
+    text_file.close()
 
 class Sprite():
     def __init__(self, sheet, width, height, end, repeat = False):
@@ -43,9 +101,7 @@ class Sprite():
         self.spritesPerCol = self.imageHeight / self.height
 
     def update(self):
-        self.spriteArea = (self.counterX * self.width, 
-                             self.counterY * self.height,
-                             self.width, self.height)
+        self.spriteArea = (self.counterX * self.width, self.counterY * self.height, self.width, self.height)
         self.counterX += 1
         if self.counterX == self.spritesPerRow:
             self.counterX = 0
@@ -54,22 +110,6 @@ class Sprite():
             if self.repeat:
                 self.counterX = 0
                 self.counterY = 0
-
-def draw_walls(walls):
-    for wall in walls:
-        pg.draw.rect(screen, wall.colour, [wall.rect.x, wall.rect.y, wall.rect.width, wall.rect.height])
-
-def draw_checkpoints(checkpoints):
-    for checkpoint in checkpoints:
-        pg.draw.rect(screen, checkpoint.colour, [checkpoint.x, checkpoint.y, checkpoint.rect.width, checkpoint.rect.height])
-        pg.draw.rect(screen, (255,255,50), [checkpoint.focus_point[0], checkpoint.focus_point[1], 5, 5])
-        screen.blit(font.render(str(checkpoint.nr), 1, (0,0,0)),(checkpoint.focus_point[0],checkpoint.focus_point[1]))
-
-def handle_user_car(keys, user_car):
-    user_car.handle_user_input(keys)
-    user_car.set_current_checkpoint_and_distance(checkpoints)
-    user_car.set_and_draw_sonar_arms(nr_arms = 3, arms_scan_range = 80, number_of_points = 15, distance = 8, size = 4)
-    user_car.rotate_blit()
 
 class Wall():
     def __init__(self, x, y, width, height, colour = (0,0,0)):
@@ -97,32 +137,35 @@ class Arm():
 
 class NeuralNetwork(object):
     def __init__(self):
-        self.nr_of_inputs = 2
+        self.nr_of_inputs = 5
         self.nr_of_outputs = 2
         self.weights1 = np.random.rand(self.nr_of_inputs,5)
         self.weights2 = np.random.rand(5,self.nr_of_outputs)
 
     def feedforward(self, x):
-        self.layer1 = sigmoid(np.dot(x, self.weights1))
-        self.output = sigmoid(np.dot(self.layer1, self.weights2))
+        self.layer1 = relu(np.dot(x, self.weights1))
+        self.output = softmax(np.dot(self.layer1, self.weights2))
         return np.argmax((self.output[0]))
 
 class Car():
     def __init__(self, colour, car_img):
-        self.x = random.randrange(290, 310)
-        self.y = random.randrange(95, 105)
+        self.x = 300
+        self.y = 120
         self.angle = 90
         self.vel = 15
+        self.id = id(self)
         
         self.image = pg.image.load("jaap_game/images/cars/"+car_img+".png")
         self.rect = self.image.get_rect()
         self.rect.center = self.x, self.y
         self.arms = []
-        self.arms_visible = False
+        self.arms_visible = True
         self.visible = True
         self.show_collision_rect = False
         self.can_drive = True
         self.is_crashed = False
+        self.is_finished = False
+        self.is_best = False
         self.colour = colour
         self.explosion_sheet = Sprite(pg.image.load("jaap_game/images/explosion.png"), 200, 240, 0, False)
         self.fire_sheet = Sprite(pg.image.load("jaap_game/images/fire.png"), 20, 20, 0, True)
@@ -148,9 +191,9 @@ class Car():
             if i == 0:
                 total_fitness += 0.2
             else:
-                total_fitness += (1/(self.checkpoint_times[i][1] - self.checkpoint_times[i - 1][1])) * 2
-
-        total_fitness += 2*(1/self.dist_to_next_checkpoint)
+                total_fitness += 2 * (1/(self.checkpoint_times[i][1] - self.checkpoint_times[i - 1][1]))
+        if self.dist_to_next_checkpoint > 2:
+            total_fitness += (1/self.dist_to_next_checkpoint)
 
         if self.nr_of_wrong_checkpoints > 0:
             total_fitness = 0
@@ -160,10 +203,11 @@ class Car():
         self.rect.center = self.x, self.y
         if check_rect_collision(self.rect, walls) != -1 or not self.can_drive:
             self.is_crashed = True
-            self.fire_sheet.update()
-            screen.blit(self.fire_sheet.sheet, (self.x - self.fire_sheet.width/2, self.y - 5), self.fire_sheet.spriteArea)
-            self.explosion_sheet.update()
-            screen.blit(self.explosion_sheet.sheet, (self.x - self.explosion_sheet.width/2, self.y - self.explosion_sheet.height), self.explosion_sheet.spriteArea)
+            if self.visible:
+                self.fire_sheet.update()
+                screen.blit(self.fire_sheet.sheet, (self.x - self.fire_sheet.width/2, self.y - 5), self.fire_sheet.spriteArea)
+                self.explosion_sheet.update()
+                screen.blit(self.explosion_sheet.sheet, (self.x - self.explosion_sheet.width/2, self.y - self.explosion_sheet.height), self.explosion_sheet.spriteArea)
             return
         self.n_drive()
         
@@ -191,6 +235,11 @@ class Car():
                 self.drive_forward()
             if keys[pg.K_DOWN]:
                 self.drive_backwards()
+            if keys[pg.K_c]:
+                show_stats_plot()
+            if keys[pg.K_b]:
+                global only_show_best_car
+                only_show_best_car = not only_show_best_car
         else:
             self.explosion_sheet.update()
             screen.blit(self.explosion_sheet.sheet, (self.x - self.explosion_sheet.width/2, self.y - self.explosion_sheet.height), self.explosion_sheet.spriteArea)
@@ -215,8 +264,9 @@ class Car():
         
         if self.show_collision_rect:
             self.image.set_colorkey(self.colour)
-
-        screen.blit(rotated_image, rotRect)
+        
+        if self.visible:
+            screen.blit(rotated_image, rotRect)
 
     def set_and_draw_sonar_arms(self, nr_arms, arms_scan_range, number_of_points, distance, size):
         self.arms = []
@@ -236,7 +286,7 @@ class Car():
                 point_surf = pg.Surface((size, size))
                 point_rect = point_surf.get_rect()
                 point_rect.center = point_x, point_y
-                if self.arms_visible and self.can_drive:
+                if self.arms_visible and self.can_drive and self.visible:
                     screen.blit(point_surf, point_rect)
                 if check_rect_collision(point_rect, walls) != -1:
                     break
@@ -257,6 +307,7 @@ class Car():
                     next_checkpoint = checkpoints[1]
                     self.laps_finished += 1
                     self.can_drive = False
+                    self.is_finished = True
 
         if self.current_checkpoint_nr + 1 < len(checkpoints):
             next_checkpoint = checkpoints[self.current_checkpoint_nr]
@@ -269,21 +320,30 @@ class GA():
         self.total_fitness = 0
         self.number_finished = 0
         self.number_crashed = 0
+        self.all_have_crashed = False
         self.mutation_rate = 0.1
-
-        for car in cars:
+        self.fastest_car = self.cars[0]
+        
+        for car in self.cars:
             if not car.can_drive:
                 self.number_finished += 1
             if car.is_crashed:
                 self.number_crashed += 1
+            if car.finish_time < self.fastest_car.finish_time and car.finish_time > 1 or self.fastest_car.finish_time == 0:
+                self.fastest_car = car
+            if only_show_best_car and not car.is_best:
+                car.visible = False
+            else:
+                car.visible = True
 
+        self.all_have_crashed = self.number_crashed == pop_size
+            
     def set_fitness(self):
         total_fit = 0
         for i in range(pop_size):
             self.cars[i].set_fitness()
             total_fit += self.cars[i].fitness
         self.total_fitness = total_fit
-        print("total fit: "+str(total_fit))
 
     def set_cars_prob(self):
         for i in range(pop_size):
@@ -315,12 +375,15 @@ class GA():
             mid_w1 = random.randrange(1, len(parent1.brain.weights1))
             mid_w2 = random.randrange(1, len(parent1.brain.weights2))
 
+            weights1 = np.concatenate((np.array(parent2.brain.weights1[mid_w1:]), np.array(parent1.brain.weights1[:mid_w1])), axis=0)
+            weights2 = np.concatenate((np.array(parent2.brain.weights2[mid_w2:]), np.array(parent1.brain.weights2[:mid_w2])), axis=0)
+
             nr_of_inputs = parent1.brain.nr_of_inputs
             nr_of_outputs = parent1.brain.nr_of_outputs
 
-            child.brain.weights1 = np.concatenate((parent2.brain.weights1[mid_w1:], parent1.brain.weights1[:mid_w1]), axis=None).reshape((nr_of_inputs,5))
-            child.brain.weights2 = np.concatenate((parent1.brain.weights2[mid_w1:], parent2.brain.weights2[:mid_w1]), axis=None).reshape((5,nr_of_outputs))
-            
+            child.brain.weights1 = weights1.reshape((nr_of_inputs,5))
+            child.brain.weights2 = weights2.reshape((5,nr_of_outputs))
+
             if self.mutation_rate > random.random():
                 self.new_pop.append(self.mutate(child))
             else:
@@ -329,8 +392,8 @@ class GA():
     def mutate(self, child):
         random_index = random.randrange(0, len(child.brain.weights1))
         random_index2 = random.randrange(0, len(child.brain.weights2))
-        child.brain.weights1[random_index] = random.random()
-        child.brain.weights2[random_index2] = random.random()
+        child.brain.weights1[random_index] -= random.random()
+        child.brain.weights2[random_index2] -= random.random()
         child.colour = pg.Color(1,255,1)
         child.image = pg.image.load("jaap_game/images/cars/car3.png")
         return child
@@ -338,9 +401,10 @@ class GA():
     def best_to_new_pop(self, amount):
         best_cars = cars[:amount]
         for car in best_cars:
-            new_car = Car(pg.Color(128,128,255), "car7")
+            new_car = Car(pg.Color(128,128,255), "car6")
             new_car.brain.weights1 = car.brain.weights1
             new_car.brain.weights2 = car.brain.weights2
+            new_car.is_best = True
             self.new_pop.append(new_car)
 
     def sort_cars(self):
@@ -351,7 +415,7 @@ class GA():
         self.sort_cars()
         self.set_cars_prob()
         self.set_cum_prob()
-        self.best_to_new_pop(amount = int(pop_size/40))
+        self.best_to_new_pop(amount = int(pop_size/10))
         self.matrix_to_array()
         self.crossover()    
 
@@ -359,34 +423,35 @@ class GA():
     
 #population and map details
 checkpoints = [
-    Checkpoint(x = 400, y = 20, width = 25, height = 180, focus_off_x = 10, focus_off_y = 100, nr = 1),
-    Checkpoint(x = 950, y = 20, width = 25, height = 180, focus_off_x = 10, focus_off_y = 170, nr = 2),
-    Checkpoint(x = 975, y = 575, width = 305, height = 25, focus_off_x = 10, focus_off_y = 10, nr = 3),
-    Checkpoint(x = 327, y = 600, width = 25, height = 180, focus_off_x = 10, focus_off_y = 10, nr = 4),
-    Checkpoint(x = 10, y = 210, width = 305, height = 25, colour = pg.Color(120,0,120), focus_off_x = 280, focus_off_y = 10, nr = 5)]
+    Checkpoint(x = 400, y = 40, width = 25, height = 160, focus_off_x = 10, focus_off_y = 85, nr = 1),
+    Checkpoint(x = 950, y = 40, width = 25, height = 160, focus_off_x = 10, focus_off_y = 140, nr = 2),
+    Checkpoint(x = 1055, y = 575, width = 200, height = 25, focus_off_x = 10, focus_off_y = 10, nr = 3),
+    Checkpoint(x = 327, y = 600, width = 25, height = 85, focus_off_x = 10, focus_off_y = 10, nr = 4),
+    Checkpoint(x = 45, y = 210, width = 200, height = 25, colour = pg.Color(120,0,120), focus_off_x = 120, focus_off_y = 10, nr = 5)]
 walls = [
     Wall(screen_width/2, 0, screen_width, 90),
     Wall(screen_width/2, screen_height, screen_width, 90),
     Wall(0, screen_height/2, 90, screen_height),
     Wall(screen_width, screen_height/2, 90, screen_height),
-    Wall(screen_width/2, screen_height/2, screen_width/2, screen_height/2),
-    Wall(screen_width/1.5, 0, 90, screen_height/6),
-    Wall(screen_width/2.2, 190, 90, screen_height/6),
-    Wall(screen_width/2, 620, 90, screen_height/6),
-    Wall(screen_width/2.7, 750, 90, screen_height/6),
-    Wall(300, 550, 250, 60),
-    Wall(50, 730, 250, 100),
-    Wall(50, 400, 250, 60),
+
+    Wall(screen_width/2, screen_height/2, screen_width/1.6, screen_height/2),
+    Wall(850, 620, 410, 95),
+    Wall(200, 750, 600, screen_height/6),
+    Wall(270, 570, 250, 60),
+    Wall(20, 400, 250, 60),
     Wall(300, 270, 250, 60)]
 
-pop_size = 250
+pop_size = 80
 total_gens = 1
 start_time = time.time()
-new_gen_time = 20
-delay = 10
-cars = []
+new_gen_time = 30
+delay = 50
+fastest_finish_times = []
+total_pop_fitness = []
+weights_directory = 'jaap_game/weights/'+str(time.time())+'/'
+only_show_best_car = False
 user_car = Car(pg.Color(255,100,255), "car4")
-user_car.arms_visible = True
+cars = []
 
 for i in range(pop_size):
     cars.append(Car(pg.Color(255,150,1), "car2"))
@@ -404,26 +469,34 @@ while run:
     draw_walls(walls)
     draw_checkpoints(checkpoints)
 
-    handle_user_car(pg.key.get_pressed(), user_car)
-
     for car in cars:
-        car.set_and_draw_sonar_arms(nr_arms = 2, arms_scan_range = 100, number_of_points = 5, distance = 60, size = 4)
+        car.set_and_draw_sonar_arms(nr_arms = 5, arms_scan_range = 180, number_of_points = 5, distance = 70, size = 4)
         car.set_current_checkpoint_and_distance(checkpoints)
         car.rotate_blit()
         car.drive(walls)
 
     ga = GA(cars)
-    if ((time.time() - start_time) / total_gens) > new_gen_time:
+    if ((time.time() - start_time) / total_gens) > new_gen_time or ga.all_have_crashed:
         total_gens += 1
         
         new_pop = ga.get_new_gen()
         cars = new_pop
 
+        if ga.fastest_car.finish_time > 0:
+            fastest_finish_times.append(ga.fastest_car.finish_time)
+        else:
+            fastest_finish_times.append(np.nan)
+
+        total_pop_fitness.append(ga.total_fitness / 5)
+
         user_car.x = 300
         user_car.y = 100
         user_car.angle = 90
+        
+        save_fastest_car_to_file(ga)
 
-    text = " Gen: "+str(total_gens)+" Finished: "+str(ga.number_finished)+"/"+str(pop_size)
+    handle_user_car(pg.key.get_pressed(), user_car)
+    text = " Gen: "+str(total_gens)+" Finished: "+str(ga.number_finished)+"/"+str(pop_size) + " Fastest: " + str(ga.fastest_car.finish_time)
     screen.blit(font.render(text, 1, (0,0,0)),(55,40))
 
     pg.display.flip()
