@@ -19,17 +19,6 @@ screen_width = 1300
 screen_height = 800
 screen = pg.display.set_mode((screen_width, screen_height)) 
 
-def sigmoid(s):
-        return 1/(1+np.exp(-s))
-
-def relu(s):
-   return np.maximum(0,s)
-
-def softmax(s):
-    expo = np.exp(s)
-    expo_sum = np.sum(np.exp(s))
-    return expo/expo_sum
-
 def check_rect_collision(rect, objects):
     for i in range(len(objects)):
         if rect.colliderect(objects[i]):
@@ -66,12 +55,6 @@ def draw_finish(tile_rows):
             tile_x += tile_size
         tile_y += tile_size
 
-def get_initial_pop():
-    cars = []
-    for i in range(pop_size):
-        cars.append(Car("car2"))
-    return cars
-
 def handle_user_car(keys, user_car):
     user_car.handle_user_input(keys)
     user_car.set_current_checkpoint_and_distance(checkpoints)
@@ -90,20 +73,11 @@ def handle_cars(cars):
                 car.is_idle = True
 
 def show_stats_plot():
-    fig, axs = plt.subplots(3)
+    fig, axs = plt.subplots(1)
 
     axs[0].plot(range(len(fastest_finish_times)), fastest_finish_times, label='Fastest finish time')
     axs[0].xlabel = "Generation"
     axs[0].ylabel = "Fastest time"
-
-    axs[1].plot(range(len(best_fitness)), best_fitness, label='Fitness of best car')
-    axs[1].xlabel = "Generation"
-    axs[1].ylabel = "Total pop fit"
-
-    axs[2].plot(range(len(best_fitness)), best_fitness, label='Fitness of best car')
-    axs[2].plot(range(len(fastest_finish_times)), fastest_finish_times, label='Fastest finish time')
-    axs[2].xlabel = "Generation"
-    axs[2].ylabel = "Tot fit vs fastest time"
 
     plt.legend()
     plt.show()
@@ -113,27 +87,6 @@ def reset_car(car):
     car.y = car_spawn_y
     car.angle = 90
 
-def save_fastest_car_to_file(ga):
-    if not os.path.exists(weights_directory):
-        os.makedirs(weights_directory)
-
-    file_name = 'gen=' + str(total_gens) + ' finish_time=' + str(ga.fastest_car.finish_time) + ' car_id=' + str(ga.fastest_car.id)
-
-    text_file = open(weights_directory+file_name+".txt", "w")
-
-    text_file.write(np.array2string(ga.fastest_car.brain.weights1.reshape((ga.fastest_car.brain.nr_of_inputs, 20)), separator=',') +" \n next_weight \n")
-    text_file.write(np.array2string(ga.fastest_car.brain.weights2.reshape((20, ga.fastest_car.brain.nr_of_outputs)), separator=','))
-
-    text_file.close()
-
-def get_saved_car_brain():
-    brain = NeuralNetwork()
-
-    with open('jaap_game/weights/best/gen=144 time=5.680000000000064 id=446450992.txt', 'r') as file:
-        saved_brain_to_use = file.read().replace('\n', '')
-    brain.weights1 = np.array(eval(saved_brain_to_use.split('next_weight')[0]))
-    brain.weights2 = np.array(eval(saved_brain_to_use.split('next_weight')[1]))
-    return brain
 
 class Sprite():
     def __init__(self, sheet, width, height, end, repeat = False):
@@ -190,26 +143,6 @@ class Arm():
         self.angle_from_car = angle
         self.arm_length = len(self.points)
 
-class NeuralNetwork(object):
-    def __init__(self):
-        self.nr_of_inputs = 6
-        self.nr_of_outputs = 4
-        self.weights1 = np.random.rand(self.nr_of_inputs,20)
-        self.weights2 = np.random.rand(20,self.nr_of_outputs)
-
-    def feedforward(self, x):
-        self.layer1 = relu(np.dot(x, self.weights1))
-        self.output = softmax(np.dot(self.layer1, self.weights2))
-        return np.argmax((self.output[0]))
-
-class CarType(Enum):
-    CROSSOVER = 1
-    MUTATION = 2
-    BEST = 3
-    SAVED = 4
-    RANDOM = 5
-    USER = 6
-
 class Levels(Enum):
     BONOBORACING123 = 1
     TURNAROUNDANDAROUND = 2
@@ -224,7 +157,6 @@ class Car():
         self.brake_speed = -1
         self.drive_speed = 1
         self.id = id(self)
-        self.car_type = CarType.CROSSOVER
         
         self.image = pg.image.load("jaap_game/images/cars/"+car_img+".png")
         self.rect = self.image.get_rect()
@@ -252,8 +184,6 @@ class Car():
         self.prob = 0
         self.cum_prob = 0
 
-        self.brain = NeuralNetwork()
-
     def set_fitness(self):
         total_fitness = 0
 
@@ -276,23 +206,6 @@ class Car():
             return
         self.n_drive()
         
-    def n_drive(self):
-        arm_lengths = []
-        for arm in self.arms:
-            arm_lengths.append(arm.arm_length)
-        direction = self.brain.feedforward([arm_lengths])
-        if direction == 0:
-            self.drive_forward()
-        if direction == 1:
-            self.brake()
-        if direction == 2:
-            self.angle += -6
-        if direction == 3:
-            self.angle += 6
-        if direction == 4:
-            pass
-        self.set_new_position()
-
     def handle_user_input(self, keys):
         if check_rect_collision(self.rect, walls) == -1:
             if keys[pg.K_LEFT]:
@@ -355,7 +268,6 @@ class Car():
 
     def set_and_draw_sonar_arms(self, nr_arms, arms_scan_range, number_of_points, distance, size, add_back_arm = False):
         self.arms = []
-        self.brain.nr_of_inputs = nr_arms
         arms_spread = 0
         if nr_arms > 1:
             arms_spread = arms_scan_range / (nr_arms - 1)
@@ -410,217 +322,6 @@ class Car():
             next_checkpoint = checkpoints[self.current_checkpoint_nr]
         self.dist_to_next_checkpoint = math.hypot(self.x - next_checkpoint.focus_point[0], self.y - next_checkpoint.focus_point[1])
 
-class GA():
-    def __init__(self, cars):
-        self.cars = cars
-        self.new_pop = []
-        self.total_fitness = 0
-        self.number_finished = 0
-        self.number_crashed = 0
-        self.number_idle = 0
-        self.all_have_crashed = False
-        self.mutation_rate = 0.05
-        self.fastest_car = self.cars[0]
-        
-        for car in self.cars:
-            if not car.can_drive:
-                self.number_finished += 1
-            if car.is_crashed:
-                self.number_crashed += 1
-            if car.is_idle:
-                self.number_idle += 1
-            if car.fitness > self.fastest_car.fitness: #car.finish_time < self.fastest_car.finish_time and car.finish_time > 1 or self.fastest_car.finish_time == 0:
-                self.fastest_car = car
-
-            car.visible = True
-            if hide_best_cars and car.car_type == CarType.BEST:
-                car.visible = False
-            if hide_random_cars and car.car_type == CarType.RANDOM:
-                car.visible = False
-            if hide_mutation_cars and car.car_type == CarType.MUTATION:
-                car.visible = False
-            if hide_crossover_cars and car.car_type == CarType.CROSSOVER:
-                car.visible = False
-
-        self.all_have_crashed = self.number_crashed + self.number_idle >= pop_size
-          
-    def set_total_fitness(self):
-        total_fit = 0
-        for i in range(pop_size):
-            self.cars[i].set_fitness()
-            total_fit += self.cars[i].fitness
-        self.total_fitness = total_fit
-
-    def set_cars_prob(self):
-        for i in range(pop_size):
-            self.cars[i].prob = (1 / self.total_fitness) * self.cars[i].fitness
-
-    def set_cum_prob(self):
-        cum_prob = 0
-        for i in range(pop_size):
-            cum_prob += self.cars[i].prob
-            self.cars[i].cum_prob = cum_prob
-
-    def select_parent(self): 
-        rand = random.random()
-        for i in range(pop_size):
-            if rand < self.cars[i].cum_prob:
-                return self.cars[i]
-
-    def matrix_to_array(self):
-        for car in self.cars:
-            car.brain.weights1 = car.brain.weights1.flatten()
-            car.brain.weights2 = car.brain.weights2.flatten()
-
-    def cut_w1(self,parent1, parent2):
-        indicator = 0
-        cutted_array = []
-        while True:
-            size_cut = random.randrange(0,10)
-            if indicator + size_cut > (parent1.brain.nr_of_inputs * 20):
-                size_cut = (parent1.brain.nr_of_inputs * 20) - indicator
-                if indicator % 2 == 0:
-                    cutted_array.append(parent1.brain.weights1[indicator:indicator + size_cut])
-                else:
-                    cutted_array.append(parent2.brain.weights1[indicator:indicator + size_cut])
-                return cutted_array
-            if indicator % 2 == 0:
-                cutted_array.append(parent1.brain.weights1[indicator:indicator + size_cut])
-            else:
-                cutted_array.append(parent2.brain.weights1[indicator:indicator + size_cut])
-            indicator += size_cut
-    
-    def cut_w2(self,parent1,parent2):
-        indicator = 0
-        cutted_array = []
-        while True:
-            size_cut = random.randrange(0,10)
-            if indicator + size_cut > (20 * parent1.brain.nr_of_outputs):
-                size_cut = (20 * parent1.brain.nr_of_outputs) - indicator
-                if indicator % 2 == 0:
-                    cutted_array.append(parent1.brain.weights2[indicator:indicator + size_cut])
-                else:
-                    cutted_array.append(parent2.brain.weights2[indicator:indicator + size_cut])
-                return cutted_array
-            if indicator % 2 == 0:
-                cutted_array.append(parent1.brain.weights2[indicator:indicator + size_cut])
-            else:
-                cutted_array.append(parent2.brain.weights2[indicator:indicator + size_cut])
-            indicator += size_cut
-        
-    def crossover(self, amount):
-        self.matrix_to_array()
-
-        for i in range(amount):
-            parent1 = self.select_parent()
-            parent2 = self.select_parent()
-
-            child = Car("car2")
-
-            cutted_array_w1 = self.cut_w1(parent1,parent2)
-            cutted_array_w2 = self.cut_w2(parent1,parent2)
-            
-            w1 = np.array([])
-            for i in cutted_array_w1:
-                w1 = np.concatenate((w1,i),axis=None)
-            
-            w2 = np.array([])
-            for i in cutted_array_w2:
-                w2 = np.concatenate((w2,i),axis=None)
-
-            inputs = child.brain.nr_of_inputs
-            outputs = child.brain.nr_of_outputs
-
-            child.brain.weights1 = w1.reshape((inputs,20))
-            child.brain.weights2 = w2.reshape((20,outputs))
-            child.color = (1,1,255)
-
-            child.car_type = CarType.CROSSOVER
-
-            self.new_pop.append(child)
-            
-    def mutate(self, car):
-        new_car = Car("car3")
-
-        new_car.brain.weights1 = new_car.brain.weights1.flatten()
-        new_car.brain.weights2 = new_car.brain.weights2.flatten()
-
-        fast_car_brain_weights1 = car.brain.weights1.flatten()
-        fast_car_brain_weights2 = car.brain.weights2.flatten()
-        
-        reached_finish = self.fastest_car.is_finished
-        for i in range(len(fast_car_brain_weights1)):
-            mutate = random.random() < self.mutation_rate
-            if mutate and reached_finish:
-                new_car.brain.weights1[i] += random.uniform(fast_car_brain_weights1[i] * 0.95, fast_car_brain_weights1[i] * 1.06)
-            elif mutate and not reached_finish:
-                new_car.brain.weights1[i] = random.random()
-            else:
-                new_car.brain.weights1[i] = fast_car_brain_weights1[i]
-
-        for i in range(len(fast_car_brain_weights2)):
-            mutate = random.random() < self.mutation_rate
-            if mutate and reached_finish:
-                new_car.brain.weights2[i] = random.uniform(fast_car_brain_weights2[i] * 0.95, fast_car_brain_weights2[i] * 1.06)
-            elif mutate and not reached_finish:
-                new_car.brain.weights2[i] = random.randrange(0,10)
-            else:
-                new_car.brain.weights2[i] = fast_car_brain_weights2[i]
-        
-        inputs = new_car.brain.nr_of_inputs
-        outputs = new_car.brain.nr_of_outputs
-
-        new_car.brain.weights1 = new_car.brain.weights1.reshape((inputs,20))
-        new_car.brain.weights2 = new_car.brain.weights2.reshape((20,outputs))
-
-        new_car.car_type = CarType.MUTATION
-
-        return new_car
-
-    def best_to_new_pop(self, amount):
-        best_cars = cars[:amount]
-        for car in best_cars:
-            new_car = Car("car6")
-            new_car.brain.weights1 = car.brain.weights1
-            new_car.brain.weights2 = car.brain.weights2
-            new_car.is_best = True
-            new_car.car_type = CarType.BEST
-            new_car.id = car.id
-            self.new_pop.append(new_car)
-    
-    def fill_new_pop_wit_random_cars(self):
-        while True:
-            if len(self.new_pop) + 1 <= pop_size:
-                random_car = Car("car7")
-                random_car.car_type = CarType.RANDOM
-                self.new_pop.append(random_car)
-            else:
-                break
-
-    def mutate_fastest(self, amount):
-        print("checkpoints: " + str(self.fastest_car.checkpoint_times))
-        print("dist to next: " + str(self.fastest_car.dist_to_next_checkpoint))
-        print("fitness: " + str(self.fastest_car.fitness))
-        print("velocity: " + str(self.fastest_car.vel))
-        for i in range(amount):
-            mutated_car = self.mutate(self.fastest_car)
-            self.new_pop.append(mutated_car)
-
-    def sort_cars(self):
-        self.cars.sort(key=lambda car: car.fitness, reverse=True)
-
-    def get_new_gen(self):
-        self.set_total_fitness()
-        self.sort_cars()
-        self.set_cars_prob()
-        self.set_cum_prob()
-        self.best_to_new_pop(amount = int(pop_size * 0.02))
-        self.crossover(amount = int(pop_size * 0.4))
-        self.mutate_fastest(amount = int(pop_size * 0.4))
-        self.fill_new_pop_wit_random_cars()
-
-        return self.new_pop
-
 #Level specific
 level_to_load = Levels.BONOBORACING123
 car_spawn_x = 0
@@ -629,12 +330,9 @@ new_gen_time = 0
 min_time_to_reach_first_checkpoint = 0
 checkpoints = []
 walls = []
-pop_size = 300
 
 #General
 delay = 20
-cars = get_initial_pop()
-weights_directory = 'jaap_game/weights/'+str(time.time())+'/'
 
 #Time related
 total_gens = 1
@@ -643,18 +341,10 @@ game_time = 0
 game_start_time = 0
 
 #Visibility
-hide_best_cars = False
-hide_mutation_cars = False
-hide_crossover_cars = False
-hide_random_cars = False
 hide_car_arms = True
 
 #Other cars
 user_car = Car("car4")
-user_car.car_type = CarType.USER
-saved_ai_car = Car("car8")
-saved_ai_car.brain = get_saved_car_brain()
-saved_ai_car.car_type = CarType.SAVED
 
 #Plot related
 fastest_finish_times = []
@@ -727,49 +417,21 @@ while run:
     draw_checkpoints(checkpoints)
     draw_finish(tile_rows = 2)
 
-    handle_cars(cars)
-    handle_cars([saved_ai_car])
     handle_user_car(pg.key.get_pressed(), user_car)
 
-    ga = GA(cars)
-    if (game_time - game_start_time) > new_gen_time or ga.all_have_crashed: #or ga.fastest_car.is_finished or ga.fastest_car.is_crashed:
+    if (game_time - game_start_time) > new_gen_time or user_car.is_finished:
         total_gens += 1
 
         game_start_time = game_time
-        
-        new_pop = ga.get_new_gen()
-        cars = new_pop
-
-        if ga.fastest_car.finish_time > 0:
-            fastest_finish_times.append(ga.fastest_car.finish_time)
-        else:
-            fastest_finish_times.append(np.nan)
-
-        best_fitness.append(ga.fastest_car.fitness)
-
-        save_fastest_car_to_file(ga)
+        # fastest_finish_times vullen met de finish times voor die dikke plots jeweet
 
         user_car = Car("car4")
-        saved_ai_car = Car("car8")
-        saved_ai_car.brain = get_saved_car_brain()
 
-    text = "Gen: "+str(total_gens)
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,45))
-    text = "Finished: "+str(ga.number_finished)+"/"+str(pop_size)
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,58))
-    text = "Crashed: "+str(ga.number_crashed)+"/"+str(pop_size) 
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,71))
-    text = "Idles deleted: " + str(ga.number_idle)+"/"+str(pop_size)
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,84))
-    text = "Fastest car: " + str(ga.fastest_car.id)
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,97))
     text = "New round in: " + str(round(game_time - game_start_time, 1)) + " : " + str(new_gen_time)
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,110))
-    text = "Fastest: " + str(ga.fastest_car.finish_time)
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,123))
-
-    text = "Hotkeys: Hide (R)andoms, (C)rossovers, (B)est, (M)utations - (S)tats"
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["black"]),(55,750))
+    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,45))
+    text = "Fastest finish time: -"
+    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,58))
+    #blit best finish time
 
     pg.display.flip()
 pg.quit()

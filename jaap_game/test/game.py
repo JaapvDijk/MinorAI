@@ -75,14 +75,20 @@ def get_initial_pop():
 def handle_user_car(keys, user_car):
     user_car.handle_user_input(keys)
     user_car.set_current_checkpoint_and_distance(checkpoints)
-    user_car.set_and_draw_sonar_arms(nr_arms = 6, arms_scan_range = 180, number_of_points = 9, distance = 50, size = 4, add_back_arm = True)
+    user_car.set_and_draw_sonar_arms(nr_arms = 5, arms_scan_range = 180, number_of_points = 9, distance = 50, size = 4, add_back_arm = False)
     user_car.rotate_blit()
 
-def handle_cars(cars):
+def handle_rl_car(action, rl_car):
+    rl_car.rl_drive(action)
+    rl_car.set_current_checkpoint_and_distance(checkpoints)
+    rl_car.set_and_draw_sonar_arms(nr_arms = 5, arms_scan_range = 180, number_of_points = 9, distance = 50, size = 4, add_back_arm = False)
+    rl_car.rotate_blit()
+
+def handle_ga_cars(cars):
     for car in cars:
         if not car.is_crashed and not car.is_finished or car.is_best: 
             if not (game_time - game_start_time > min_time_to_reach_first_checkpoint and len(car.checkpoint_times) < 1):
-                car.set_and_draw_sonar_arms(nr_arms = 6, arms_scan_range = 180, number_of_points = 9, distance = 50, size = 4, add_back_arm = True)
+                car.set_and_draw_sonar_arms(nr_arms = 5, arms_scan_range = 180, number_of_points = 9, distance = 50, size = 4, add_back_arm = False)
                 car.set_current_checkpoint_and_distance(checkpoints)
                 car.rotate_blit()
                 car.drive(walls)
@@ -134,6 +140,11 @@ def get_saved_car_brain():
     brain.weights1 = np.array(eval(saved_brain_to_use.split('next_weight')[0]))
     brain.weights2 = np.array(eval(saved_brain_to_use.split('next_weight')[1]))
     return brain
+
+def init_game(game_type, level_to_load, car_spawn_x, car_spawn_y):
+    level_to_load = level_to_load
+    car_spawn_x = car_spawn_x
+    car_spawn_y = car_spawn_y
 
 class Sprite():
     def __init__(self, sheet, width, height, end, repeat = False):
@@ -192,8 +203,8 @@ class Arm():
 
 class NeuralNetwork(object):
     def __init__(self):
-        self.nr_of_inputs = 6
-        self.nr_of_outputs = 4
+        self.nr_of_inputs = 5
+        self.nr_of_outputs = 5
         self.weights1 = np.random.rand(self.nr_of_inputs,20)
         self.weights2 = np.random.rand(20,self.nr_of_outputs)
 
@@ -209,10 +220,15 @@ class CarType(Enum):
     SAVED = 4
     RANDOM = 5
     USER = 6
+    RL = 7
 
 class Levels(Enum):
-    BONOBORACING123 = 1
-    TURNAROUNDANDAROUND = 2
+    LEVEL1 = 1
+    LEVEL2 = 2
+
+class GameType(Enum):
+    GA = 1
+    RL = 2
 
 class Car():
     def __init__(self, car_img):
@@ -286,19 +302,36 @@ class Car():
         if direction == 1:
             self.brake()
         if direction == 2:
-            self.angle += -6
+            self.drive_right()
         if direction == 3:
-            self.angle += 6
+            self.drive_left()
         if direction == 4:
-            pass
+            self.glide()
+        self.set_new_position()
+
+    def rl_drive(self, action):
+        self.rect.center = self.x, self.y
+        if check_rect_collision(self.rect, walls) != -1 or not self.can_drive:
+            self.is_crashed = True
+            return
+        if action == "forward":
+            self.drive_forward()
+        if action == "brake":
+            self.brake()
+        if action == "right":
+            self.drive_right()
+        if action == "left":
+            self.drive_left()
+        # if action == "nothing":
+        #    self.glide()
         self.set_new_position()
 
     def handle_user_input(self, keys):
         if check_rect_collision(self.rect, walls) == -1:
             if keys[pg.K_LEFT]:
-                self.angle += 6
+                self.drive_left()
             if keys[pg.K_RIGHT]:
-                self.angle += -6
+                self.drive_right()
             if keys[pg.K_UP]:
                 self.drive_forward()
             if keys[pg.K_DOWN]:
@@ -316,11 +349,20 @@ class Car():
                 hide_crossover_cars = not hide_crossover_cars
             if keys[pg.K_r]:
                 global hide_random_cars
-                hide_random_cars = not hide_random_cars                         
+                hide_random_cars = not hide_random_cars         
+            else:
+                self.glide()
+
             self.set_new_position()
         else:
             self.explosion_sheet.update()
             screen.blit(self.explosion_sheet.sheet, (self.x - self.explosion_sheet.width/2, self.y - self.explosion_sheet.height), self.explosion_sheet.spriteArea)
+    
+    def drive_left(self):
+        self.angle += 10
+    
+    def drive_right(self):
+        self.angle += -10
 
     def drive_forward(self):
         if self.vel + self.drive_speed <= self.max_speed:
@@ -329,6 +371,10 @@ class Car():
     def brake(self):
         if abs(self.vel + self.brake_speed) <= self.max_speed:
             self.increase_speed(self.brake_speed)
+    
+    def glide(self):
+        if self.vel + self.brake_speed / 8 >= 0:
+            self.increase_speed(self.brake_speed / 8)
 
     def increase_speed(self, amount):
         self.vel += amount
@@ -622,16 +668,17 @@ class GA():
         return self.new_pop
 
 #Level specific
-level_to_load = Levels.BONOBORACING123
-car_spawn_x = 0
-car_spawn_y = 0
-new_gen_time = 0
+level_to_load = Levels.LEVEL1
+car_spawn_x = 250
+car_spawn_y = 100
+new_round_time = 0
 min_time_to_reach_first_checkpoint = 0
 checkpoints = []
 walls = []
-pop_size = 300
+pop_size = 200
 
 #General
+game_type = GameType.RL
 delay = 20
 cars = get_initial_pop()
 weights_directory = 'jaap_game/weights/'+str(time.time())+'/'
@@ -652,6 +699,8 @@ hide_car_arms = True
 #Other cars
 user_car = Car("car4")
 user_car.car_type = CarType.USER
+rl_car = Car("car8")
+rl_car.car_type = CarType.RL
 saved_ai_car = Car("car8")
 saved_ai_car.brain = get_saved_car_brain()
 saved_ai_car.car_type = CarType.SAVED
@@ -660,7 +709,7 @@ saved_ai_car.car_type = CarType.SAVED
 fastest_finish_times = []
 best_fitness = []
 
-if level_to_load == Levels.BONOBORACING123:
+if level_to_load == Levels.LEVEL1:
     checkpoints = [
     Checkpoint(x = 690, y = 40, width = 50, height = 160, focus_off_x = 10, focus_off_y = 85, nr = 1),
     Checkpoint(x = 950, y = 40, width = 50, height = 160, focus_off_x = 10, focus_off_y = 140, nr = 2),
@@ -673,8 +722,8 @@ if level_to_load == Levels.BONOBORACING123:
     Wall(0, screen_height/2, 90, screen_height),
     Wall(screen_width, screen_height/2, 90, screen_height),
 
-    Wall(580, 65, 80, 100),
-    Wall(860, 180, 80, 100),
+    Wall(580, 45, 80, 100),
+    Wall(860, 200, 80, 100),
     Wall(screen_width/2, screen_height/2, screen_width/1.6, screen_height/2),
     Wall(850, 620, 410, 95),
     #Wall(1150, 500, 50, 200),
@@ -682,12 +731,10 @@ if level_to_load == Levels.BONOBORACING123:
     Wall(270, 570, 250, 60),
     Wall(20, 400, 250, 60),
     Wall(300, 270, 250, 60)]
-    car_spawn_x = 300
-    car_spawn_y = 120
-    new_gen_time = 8
-    min_time_to_reach_first_checkpoint = 1.1
 
-if level_to_load == Levels.TURNAROUNDANDAROUND:
+    new_round_time = 8
+    min_time_to_reach_first_checkpoint = 1.1
+if level_to_load == Levels.LEVEL2:
     checkpoints = [
     Checkpoint(x = 260, y = 140, width = 110, height = 20, focus_off_x = 85, focus_off_y = 10, nr = 1),
     Checkpoint(x = 400, y = 40, width = 20, height = 100, focus_off_x = 10, focus_off_y = 80, nr = 2),
@@ -706,70 +753,101 @@ if level_to_load == Levels.TURNAROUNDANDAROUND:
     Wall(250, 85, 20, 150),
     Wall(610, 150, 20, 350)]
 
-    car_spawn_x = 70
-    car_spawn_y = 200
-    new_gen_time = 5
+    new_round_time = 5
     min_time_to_reach_first_checkpoint = 0.7
 
-run = True
-while run:
-    pg.time.delay(delay)
-    for event in pg.event.get():
-        if event.type == pg.QUIT:
-            run = False
+if game_type == GameType.GA:
+    run = True
+    while run:
+        pg.time.delay(delay)
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                run = False
+                
+        screen.fill((85,96,91))
 
-    ticks += 1
-    game_time = ticks * (delay / 1000)
+        draw_walls(walls)
+        draw_checkpoints(checkpoints)
+        draw_finish(tile_rows = 2)
 
-    screen.fill((85,96,91))
-
-    draw_walls(walls)
-    draw_checkpoints(checkpoints)
-    draw_finish(tile_rows = 2)
-
-    handle_cars(cars)
-    handle_cars([saved_ai_car])
-    handle_user_car(pg.key.get_pressed(), user_car)
-
-    ga = GA(cars)
-    if (game_time - game_start_time) > new_gen_time or ga.all_have_crashed: #or ga.fastest_car.is_finished or ga.fastest_car.is_crashed:
-        total_gens += 1
-
-        game_start_time = game_time
+        ticks += 1
+        game_time = ticks * (delay / 1000)
         
-        new_pop = ga.get_new_gen()
-        cars = new_pop
+        handle_ga_cars(cars)
+        #handle_cars([saved_ai_car])
+        handle_user_car(pg.key.get_pressed(), user_car)
 
-        if ga.fastest_car.finish_time > 0:
-            fastest_finish_times.append(ga.fastest_car.finish_time)
-        else:
-            fastest_finish_times.append(np.nan)
+        ga = GA(cars)
+        if (game_time - game_start_time) > new_round_time or ga.all_have_crashed and game_type == GameType.GA: #or ga.fastest_car.is_finished or ga.fastest_car.is_crashed:
+            total_gens += 1
 
-        best_fitness.append(ga.fastest_car.fitness)
+            game_start_time = game_time
+            
+            new_pop = ga.get_new_gen()
+            cars = new_pop
 
-        save_fastest_car_to_file(ga)
+            if ga.fastest_car.finish_time > 0:
+                fastest_finish_times.append(ga.fastest_car.finish_time)
+            else:
+                fastest_finish_times.append(np.nan)
 
-        user_car = Car("car4")
-        saved_ai_car = Car("car8")
-        saved_ai_car.brain = get_saved_car_brain()
+            best_fitness.append(ga.fastest_car.fitness)
 
-    text = "Gen: "+str(total_gens)
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,45))
-    text = "Finished: "+str(ga.number_finished)+"/"+str(pop_size)
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,58))
-    text = "Crashed: "+str(ga.number_crashed)+"/"+str(pop_size) 
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,71))
-    text = "Idles deleted: " + str(ga.number_idle)+"/"+str(pop_size)
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,84))
-    text = "Fastest car: " + str(ga.fastest_car.id)
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,97))
-    text = "New round in: " + str(round(game_time - game_start_time, 1)) + " : " + str(new_gen_time)
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,110))
-    text = "Fastest: " + str(ga.fastest_car.finish_time)
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,123))
+            save_fastest_car_to_file(ga)
 
-    text = "Hotkeys: Hide (R)andoms, (C)rossovers, (B)est, (M)utations - (S)tats"
-    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["black"]),(55,750))
+            user_car = Car("car4")
+            saved_ai_car = Car("car8")
+            saved_ai_car.brain = get_saved_car_brain()
 
-    pg.display.flip()
-pg.quit()
+        text = "Gen: "+str(total_gens)
+        screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,45))
+        text = "Finished: "+str(ga.number_finished)+"/"+str(pop_size)
+        screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,58))
+        text = "Crashed: "+str(ga.number_crashed)+"/"+str(pop_size) 
+        screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,71))
+        text = "Idles deleted: " + str(ga.number_idle)+"/"+str(pop_size)
+        screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,84))
+        text = "Fastest car: " + str(ga.fastest_car.id)
+        screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,97))
+        text = "New round in: " + str(round(new_round_time - (game_time - game_start_time), 1))
+        screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,110))
+        text = "Fastest: " + str(ga.fastest_car.finish_time)
+        screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,123))
+
+        text = "Hotkeys: Hide (R)andoms, (C)rossovers, (B)est, (M)utations - (S)tats"
+        screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["black"]),(55,750))
+
+        pg.display.flip()
+    pg.quit()
+
+def rl_step(action):
+    global ticks
+    global game_time
+    global game_start_time
+    global rl_car
+
+    if game_type == GameType.RL:
+        pg.time.delay(delay)
+
+        ticks += 1
+        game_time = ticks * (delay / 1000)
+
+        screen.fill((85,96,91))
+
+        draw_walls(walls)
+        draw_checkpoints(checkpoints)
+        draw_finish(tile_rows = 2)
+
+        if rl_car.is_crashed or (game_time - game_start_time) >= new_round_time:
+            game_start_time = game_time
+            reset_car(rl_car)
+            rl_car = Car("car8")
+
+        handle_rl_car(action, rl_car)
+
+        text = "Gametime: " + str(round(game_time, 1))
+        screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,70))
+        text = "Next round in: " + str(round(new_round_time - (game_time - game_start_time), 1))
+        screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,83))
+
+        pg.display.flip()
