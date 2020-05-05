@@ -1,7 +1,7 @@
 import numpy as np
 
-def sigmoid(s):
-        return 1/(1+np.exp(-s))
+# def sigmoid(s):
+#         return 1/(1+np.exp(-s))
 
 def relu(s):
    return np.maximum(0,s)
