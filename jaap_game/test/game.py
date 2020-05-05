@@ -14,7 +14,6 @@ from helpers import *
 screen_width = 1300
 screen_height = 800
 screen = pg.display.set_mode((screen_width, screen_height)) 
-pop_size = 100
 
 class Wall():
     def __init__(self, x, y, width, height, colour = pg.color.THECOLORS["darkgray"]):
@@ -93,8 +92,10 @@ class Level2(object):
 
 class Car(object):
     def __init__(self, car_img, car_spawn_x, car_spawn_y):
-        self.x = car_spawn_x
-        self.y = car_spawn_y
+        self.car_spawn_x = car_spawn_x
+        self.car_spawn_y = car_spawn_y
+        self.x = self.car_spawn_x
+        self.y = self.car_spawn_y
         self.angle = 90
         self.vel = 0
         self.max_speed = 19
@@ -126,50 +127,7 @@ class Car(object):
         self.finish_time = 0
         self.checkpoint_times = []
 
-        self.fitness = 0
-        self.prob = 0
-        self.cum_prob = 0
-
         self.brain = NeuralNetwork()
-    
-    def handle_user_car(self, keys, user_car):
-        user_car.handle_user_input(keys)
-        user_car.set_current_checkpoint_and_distance(checkpoints)
-        user_car.set_and_draw_sonar_arms(nr_arms = 5, arms_scan_range = 180, number_of_points = 9, distance = 50, size = 4, add_back_arm = False)
-        user_car.rotate_blit()
-
-    
-    def handle_user_input(self, keys):
-        if check_rect_collision(self.rect, walls) == -1:
-            if keys[pg.K_LEFT]:
-                self.drive_left()
-            if keys[pg.K_RIGHT]:
-                self.drive_right()
-            if keys[pg.K_UP]:
-                self.drive_forward()
-            if keys[pg.K_DOWN]:
-                self.brake()
-            if keys[pg.K_s]:
-                show_stats_plot()
-            if keys[pg.K_b]:
-                global hide_best_cars
-                hide_best_cars = not hide_best_cars
-            if keys[pg.K_m]:
-                global hide_mutation_cars
-                hide_mutation_cars = not hide_mutation_cars
-            if keys[pg.K_c]:
-                global hide_crossover_cars
-                hide_crossover_cars = not hide_crossover_cars
-            if keys[pg.K_r]:
-                global hide_random_cars
-                hide_random_cars = not hide_random_cars         
-            else:
-                self.glide()
-
-            self.set_new_position()
-        else:
-            self.explosion_sheet.update()
-            screen.blit(self.explosion_sheet.sheet, (self.x - self.explosion_sheet.width/2, self.y - self.explosion_sheet.height), self.explosion_sheet.spriteArea)
 
     def drive_left(self):
         self.angle += 10
@@ -269,8 +227,39 @@ class Car(object):
             next_checkpoint = checkpoints[self.current_checkpoint_nr]
         self.dist_to_next_checkpoint = math.hypot(self.x - next_checkpoint.focus_point[0], self.y - next_checkpoint.focus_point[1])
 
-class Game(object):
+    def handle_user_input(self, keys, walls):
+        if check_rect_collision(self.rect, walls) == -1:
+            if keys[pg.K_LEFT]:
+                self.drive_left()
+            if keys[pg.K_RIGHT]:
+                self.drive_right()
+            if keys[pg.K_UP]:
+                self.drive_forward()
+            if keys[pg.K_DOWN]:
+                self.brake()
+            if keys[pg.K_s]:
+                show_stats_plot()
+            if keys[pg.K_b]:
+                global hide_best_cars
+                hide_best_cars = not hide_best_cars
+            if keys[pg.K_m]:
+                global hide_mutation_cars
+                hide_mutation_cars = not hide_mutation_cars
+            if keys[pg.K_c]:
+                global hide_crossover_cars
+                hide_crossover_cars = not hide_crossover_cars
+            if keys[pg.K_r]:
+                global hide_random_cars
+                hide_random_cars = not hide_random_cars         
+            else:
+                self.glide()
 
+            self.set_new_position()
+        else:
+            self.explosion_sheet.update()
+            screen.blit(self.explosion_sheet.sheet, (self.x - self.explosion_sheet.width/2, self.y - self.explosion_sheet.height), self.explosion_sheet.spriteArea)
+
+class Game(object):
     def __init__(self):
         pg.init()
         pg.font.init()
@@ -279,8 +268,6 @@ class Game(object):
         self.game_time = 0
         self.game_start_time = 0
         self.level = Level1()
-        self.new_round_time = 0
-        self.min_time_to_reach_first_checkpoint = 0
         self.game_type = GameType.RL
         self.delay = 20
         self.hide_car_arms = True
@@ -288,8 +275,7 @@ class Game(object):
         self.user_car.car_type = CarType.USER
         self.stats_font = pg.font.SysFont('segoeui', 15)
         self.checkpoint_font = pg.font.SysFont('segoeui', 20)
-        
-    
+
     def init_game(self,game_type, level_to_load, car_spawn_x, car_spawn_y):
         self.level_to_load = level_to_load
         self.car_spawn_x = car_spawn_x
@@ -324,26 +310,29 @@ class Game(object):
 
                 self.tile_x += self.tile_size
             self.tile_y += self.tile_size
-    
+
+    def handle_user_car(self, keys, user_car, walls):
+        self.user_car.handle_user_input(keys, walls)
+        self.user_car.set_current_checkpoint_and_distance(self.level.checkpoints)
+        self.user_car.set_and_draw_sonar_arms(nr_arms = 5, arms_scan_range = 180, number_of_points = 9, distance = 50, size = 4, add_back_arm = False, walls = walls)
+        self.user_car.rotate_blit()
+
 class Genectic_game(Game):
     def __init__(self):
-        self.pop_size = 100
+        Game.__init__(self)
         self.cars = []
         self.weights_directory = 'jaap_game/weights/'+str(time.time())+'/'
-        self.hide_best_cars = False
-        self.hide_mutation_cars = False
-        self.hide_crossover_cars = False
-        self.hide_random_cars = False
         self.fastest_finish_times = []
         self.best_fitness = []
+        self.ga = GA(self.cars)
 
-        for i in range(self.pop_size):
+        for i in range(self.ga.pop_size):
             self.cars.append(GenecticCar("car2", 250, 100))
 
-    def handle_ga_cars(self, cars):
+    def handle_cars(self, cars, walls, checkpoints):
         for car in self.cars:
             if not car.is_crashed and not car.is_finished or car.is_best: 
-                if not (self.game_time - self.game_start_time > self.min_time_to_reach_first_checkpoint and len(car.checkpoint_times) < 1):
+                if not (self.game_time - self.game_start_time > self.level.min_time_to_reach_first_checkpoint and len(car.checkpoint_times) < 1):
                     car.set_and_draw_sonar_arms(nr_arms = 5, arms_scan_range = 180, number_of_points = 9, distance = 50, size = 4, add_back_arm = False, walls = self.level.walls)
                     car.set_current_checkpoint_and_distance(self.level.checkpoints)
                     car.rotate_blit()
@@ -368,12 +357,12 @@ class Genectic_game(Game):
             self.ticks += 1
             self.game_time = self.ticks * (self.delay / 1000)
             
-            self.handle_ga_cars(self.cars)
-            #self.handle_cars([saved_ai_car])
-            self.handle_user_car(pg.key.get_pressed(), self.user_car)
+            self.handle_cars(self.cars, self.level.walls, self.level.checkpoints)
+            #self.handle_cars([saved_ai_car]) #todo
+            self.handle_user_car(pg.key.get_pressed(), self.user_car, self.level.walls)
 
             ga = GA(self.cars)
-            if (self.game_time - self.game_start_time) > self.new_round_time or ga.all_have_crashed and self.game_type == GameType.GA: #or ga.fastest_car.is_finished or ga.fastest_car.is_crashed:
+            if (self.game_time - self.game_start_time) > self.level.new_round_time or ga.all_have_crashed and self.game_type == GameType.GA: #or ga.fastest_car.is_finished or ga.fastest_car.is_crashed:
                 self.total_gens += 1
 
                 self.game_start_time = self.game_time
@@ -388,23 +377,23 @@ class Genectic_game(Game):
 
                 self.best_fitness.append(ga.fastest_car.fitness)
 
-                save_fastest_car_to_file(ga)
+                #save_fastest_car_to_file(ga) #todo
 
                 self.user_car = Car("car4", 250, 100)
-                self.saved_ai_car = GenecticCar("car8", 250, 100)
-                self.saved_ai_car.brain = get_saved_car_brain()
+                #self.saved_ai_car = GenecticCar("car8", 250, 100) #todo
+                #self.saved_ai_car.brain = get_saved_car_brain() #todo
 
             text = "Gen: "+str(self.total_gens)
             screen.blit(self.stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,45))
-            text = "Finished: "+str(ga.number_finished)+"/"+str(self.pop_size)
+            text = "Finished: "+str(ga.number_finished)+"/"+str(self.ga.pop_size)
             screen.blit(self.stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,58))
-            text = "Crashed: "+str(ga.number_crashed)+"/"+str(self.pop_size) 
+            text = "Crashed: "+str(ga.number_crashed)+"/"+str(self.ga.pop_size) 
             screen.blit(self.stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,71))
-            text = "Idles deleted: " + str(ga.number_idle)+"/"+str(self.pop_size)
+            text = "Idles deleted: " + str(ga.number_idle)+"/"+str(self.ga.pop_size)
             screen.blit(self.stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,84))
             text = "Fastest car: " + str(ga.fastest_car.id)
             screen.blit(self.stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,97))
-            text = "New round in: " + str(round(self.new_round_time - (self.game_time - self.game_start_time), 1))
+            text = "New round in: " + str(round(self.level.new_round_time - (self.game_time - self.game_start_time), 1))
             screen.blit(self.stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,110))
             text = "Fastest: " + str(ga.fastest_car.finish_time)
             screen.blit(self.stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,123))
@@ -432,7 +421,7 @@ class ReinforcementGame(Game):
         self.draw_checkpoints(self.level.checkpoints)
         self.draw_finish(tile_rows = 2)
 
-        if self.car.is_crashed or (self.game_time - self.game_start_time) >= self.new_round_time:
+        if self.car.is_crashed or (self.game_time - self.game_start_time) >= self.level.new_round_time:
             self.game_start_time = self.game_time
             self.car = ReinforcementCar("car8", 250, 100)
 
@@ -441,7 +430,7 @@ class ReinforcementGame(Game):
 
         text = "Gametime: " + str(round(self.game_time, 1))
         screen.blit(self.stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,70))
-        text = "Next round in: " + str(round(self.new_round_time - (self.game_time - self.game_start_time), 1))
+        text = "Next round in: " + str(round(self.level.new_round_time - (self.game_time - self.game_start_time), 1))
         screen.blit(self.stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,83))
 
         pg.display.flip()
@@ -490,9 +479,14 @@ class NeuralNetwork(object):
         return np.argmax((self.output[0]))
 
 class GenecticCar(Car):
+    def __init__(self, car_img, car_spawn_x, car_spawn_y):
+        Car.__init__(self, car_img, car_spawn_x, car_spawn_y)
+        self.fitness = 0
+        self.prob = 0
+        self.cum_prob = 0
 
     def set_fitness(self):
-        total_fitness = 0
+        total_fitness = 0.01
 
         for i in range(len(self.checkpoint_times)):
             if i == 0:
@@ -559,16 +553,21 @@ class ReinforcementCar(Car):
 
 class GA():
     def __init__(self, cars):
+        self.pop_size = 200
         self.cars = cars
         self.new_pop = []
         self.total_fitness = 0
         self.number_finished = 0
         self.number_crashed = 0
         self.number_idle = 0
-        self.all_have_crashed = False
+        self.all_have_crashed = False        
         self.mutation_rate = 0.05
-        self.fastest_car = self.cars[0]
-        
+        self.fastest_car = cars[0]
+        self.hide_best_cars = False
+        self.hide_mutation_cars = False
+        self.hide_crossover_cars = False
+        self.hide_random_cars = False
+
         for car in self.cars:
             if not car.can_drive:
                 self.number_finished += 1
@@ -580,37 +579,37 @@ class GA():
                 self.fastest_car = car
 
             car.visible = True
-            if hide_best_cars and car.car_type == CarType.BEST:
+            if self.hide_best_cars and car.car_type == CarType.BEST:
                 car.visible = False
-            if hide_random_cars and car.car_type == CarType.RANDOM:
+            if self.hide_random_cars and car.car_type == CarType.RANDOM:
                 car.visible = False
-            if hide_mutation_cars and car.car_type == CarType.MUTATION:
+            if self.hide_mutation_cars and car.car_type == CarType.MUTATION:
                 car.visible = False
-            if hide_crossover_cars and car.car_type == CarType.CROSSOVER:
+            if self.hide_crossover_cars and car.car_type == CarType.CROSSOVER:
                 car.visible = False
 
-        self.all_have_crashed = self.number_crashed + self.number_idle >= pop_size
+        self.all_have_crashed = self.number_crashed + self.number_idle >= self.pop_size
           
     def set_total_fitness(self):
         total_fit = 0
-        for i in range(pop_size):
+        for i in range(self.pop_size):
             self.cars[i].set_fitness()
             total_fit += self.cars[i].fitness
         self.total_fitness = total_fit
 
     def set_cars_prob(self):
-        for i in range(pop_size):
+        for i in range(self.pop_size):
             self.cars[i].prob = (1 / self.total_fitness) * self.cars[i].fitness
 
     def set_cum_prob(self):
         cum_prob = 0
-        for i in range(pop_size):
+        for i in range(self.pop_size):
             cum_prob += self.cars[i].prob
             self.cars[i].cum_prob = cum_prob
 
     def select_parent(self): 
         rand = random.random()
-        for i in range(pop_size):
+        for i in range(self.pop_size):
             if rand < self.cars[i].cum_prob:
                 return self.cars[i]
 
@@ -761,9 +760,9 @@ class GA():
         self.sort_cars()
         self.set_cars_prob()
         self.set_cum_prob()
-        self.best_to_new_pop(amount = int(pop_size * 0.02))
-        self.crossover(amount = int(pop_size * 0.4))
-        self.mutate_fastest(amount = int(pop_size * 0.4))
+        self.best_to_new_pop(amount = int(self.pop_size * 0.02))
+        self.crossover(amount = int(self.pop_size * 0.4))
+        self.mutate_fastest(amount = int(self.pop_size * 0.4))
         self.fill_new_pop_wit_random_cars()
 
         return self.new_pop
@@ -773,8 +772,6 @@ game1.step("forward")
 game1.step("forward")
 game1.step("forward")
 game1.step("forward")
-
-
 
 game = Genectic_game()
 game.run()
