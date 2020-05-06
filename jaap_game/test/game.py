@@ -106,7 +106,7 @@ class Car(object):
         self.car_type = CarType.CROSSOVER
         self.hide_car_arms = True
         
-        self.image = pg.image.load("jaap_game/images/cars/"+car_img+".png")
+        self.image = pg.image.load("images/cars/"+car_img+".png")
         self.rect = self.image.get_rect()
         self.rect.center = self.x, self.y
         self.arms = []
@@ -118,8 +118,8 @@ class Car(object):
         self.is_finished = False
         self.is_best = False
         self.colour = pg.color.THECOLORS["black"]
-        self.explosion_sheet = Sprite(pg.image.load("jaap_game/images/explosion.png"), 200, 240, 0, False)
-        self.fire_sheet = Sprite(pg.image.load("jaap_game/images/fire.png"), 20, 20, 0, True)
+        self.explosion_sheet = Sprite(pg.image.load("images/explosion.png"), 200, 240, 0, False)
+        self.fire_sheet = Sprite(pg.image.load("images/fire.png"), 20, 20, 0, True)
 
         self.current_checkpoint_nr = 0
         self.nr_of_wrong_checkpoints = 0
@@ -128,7 +128,7 @@ class Car(object):
         self.finish_time = 0
         self.checkpoint_times = []
 
-        self.brain = NeuralNetwork()
+        self.brain = NeuralNetworkGenetic()
 
     def drive_left(self):
         self.angle += 10
@@ -417,6 +417,8 @@ class Genectic_game(Game):
             pg.display.flip()
         pg.quit()
 
+
+
 class ReinforcementGame(Game):
     def __init__(self):
         Game.__init__(self)
@@ -479,7 +481,7 @@ class Sprite():
                 self.counterX = 0
                 self.counterY = 0
 
-class NeuralNetwork(object):
+class NeuralNetworkGenetic(object):
     def __init__(self):
         self.nr_of_inputs = 6
         self.nr_of_outputs = 5
@@ -490,6 +492,108 @@ class NeuralNetwork(object):
         self.layer1 = relu(np.dot(x, self.weights1))
         self.output = softmax(np.dot(self.layer1, self.weights2))
         return np.argmax((self.output[0]))
+
+class NeuralNetwork(object):
+    def __init__(self):
+        self.x = 0
+        self.y = 0
+        self.b1 = np.random.rand(1,7)
+        self.b2 = np.random.rand(1,3)
+        self.w1 = np.random.rand(5,7)
+        self.w2 = np.random.rand(7,3)
+
+    def calculate_sigmoid(self, result):
+        sig_result = 1/(1+np.exp(-result))
+        return sig_result
+    
+    def test_sample(self,x):
+        self.x = x
+        self.feed_forward()
+        return self.outcome
+        
+    def feed_forward(self):
+        self.layer1 = self.calculate_sigmoid(np.dot(self.x, self.w1) + self.b1)
+        self.outcome = self.calculate_sigmoid(np.dot(self.layer1, self.w2) + self.b2)
+
+    def update_w2(self):
+        dloss_doutcomesig = 2 *(self.y-self.outcome)
+        doutcomesig_doutcome = self.outcome*(1-self.outcome)
+        doutcome_dw2 = self.layer1
+        dloss_dw2 = np.dot(doutcome_dw2.T, (dloss_doutcomesig * doutcomesig_doutcome))
+
+        self.w2 += dloss_dw2
+    
+    def update_b2(self):
+        dloss_doutcomesig = 2 *(self.y-self.outcome)
+        doutcomesig_doutcome = self.outcome*(1-self.outcome)
+        doutcome_db2 = 1
+        dloss_db2 = dloss_doutcomesig * doutcomesig_doutcome
+
+        self.b2 += 0.1 * dloss_db2
+
+    def update_w1(self):
+        dloss_doutcomesig = 2 *(self.y-self.outcome)
+
+        doutcomesig_doutcome = self.outcome*(1-self.outcome)
+        doutcome_dlayer1sig = self.w2
+        dlayer1sig_dlayer1 = self.layer1 *(1-self.layer1)
+        dlayer1_dw1 = self.x
+        dloss_dw1 = np.dot(dlayer1_dw1.T, (np.dot(dloss_doutcomesig * doutcomesig_doutcome, doutcome_dlayer1sig.T) * dlayer1sig_dlayer1)) 
+        
+        self.w1 += dloss_dw1
+    
+    def update_b1(self):
+        dloss_doutcomesig = 2 *(self.y-self.outcome)
+        doutcomesig_doutcome = self.outcome*(1-self.outcome)
+        doutcome_dlayer1sig = self.w2
+        dlayer1sig_dlayer1 = self.layer1 *(1-self.layer1)
+        dlayer1_db1 = 1
+        dloss_db1 = np.dot(dloss_doutcomesig * doutcomesig_doutcome, doutcome_dlayer1sig.T) * dlayer1sig_dlayer1
+
+        self.b1 += 0.1 * dloss_db1
+
+    def feed_backward(self):
+        self.update_w2()
+        self.update_b2()
+        self.update_w1()
+        self.update_b1()
+    
+    def train(self, samples, outputs):
+        for episodes in range(10000):
+            for i in range(len(samples)):
+                self.x = np.array([samples[i]])
+                self.y = np.array([outputs[i]])
+                self.feed_forward()
+                self.feed_backward()
+
+class SupervisedGame(Game):
+    def __init__(self):
+        Game.__init__(self)
+    
+    def record(self):
+        
+        
+    def run(self):
+        run = True
+        while run:
+            pg.time.delay(self.delay)
+            for event in pg.event.get():
+                if event.type == pg.QUIT:
+                    run = False
+                    
+            screen.fill((85,96,91))
+
+            self.draw_walls(self.level.walls)
+            self.draw_checkpoints(self.level.checkpoints)
+            self.draw_finish(tile_rows = 2)
+            
+            #self.handle_cars([saved_ai_car]) #todo
+            self.handle_user_car(pg.key.get_pressed(), self.user_car, self.level.walls)
+
+
+            pg.display.flip()
+        pg.quit()
+
 
 class GenecticCar(Car):
     def __init__(self, car_img, car_spawn_x, car_spawn_y):
@@ -818,5 +922,5 @@ game.step("left")
 game.step("right")
 game.step("backwards")
 
-game = Genectic_game()
+game = SupervisedGame()
 game.run()
