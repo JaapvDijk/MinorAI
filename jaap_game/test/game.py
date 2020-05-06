@@ -8,6 +8,8 @@ import glob
 from enum import Enum
 from enums import *
 from helpers import *
+import pandas as pd
+import ast
 
 screen_width = 1300
 screen_height = 800
@@ -102,7 +104,7 @@ class Car(object):
         self.y = self.car_spawn_y
         self.angle = 90
         self.vel = 0
-        self.max_speed = 15
+        self.max_speed = 5
         self.brake_speed = -0.5
         self.drive_speed = 1
         self.id = id(self)
@@ -134,10 +136,10 @@ class Car(object):
         self.brain = NeuralNetworkGenetic()
 
     def drive_left(self):
-        self.angle += 12
+        self.angle += 6
     
     def drive_right(self):
-        self.angle += -12
+        self.angle += -6
 
     def drive_forward(self):
         if self.vel + self.drive_speed <= self.max_speed:
@@ -500,17 +502,18 @@ class NeuralNetwork(object):
     def __init__(self):
         self.x = 0
         self.y = 0
-        self.b1 = np.random.rand(1,7)
-        self.b2 = np.random.rand(1,3)
-        self.w1 = np.random.rand(5,7)
-        self.w2 = np.random.rand(7,3)
+        self.b1 = np.random.rand(1,10)
+        self.b2 = np.random.rand(1,5)
+        self.w1 = np.random.rand(6,10)
+        self.w2 = np.random.rand(10,5)
 
     def calculate_sigmoid(self, result):
         sig_result = 1/(1+np.exp(-result))
         return sig_result
     
     def test_sample(self,x):
-        self.x = x
+        self.x = np.array([x])
+        #print(self.x)
         self.feed_forward()
         return self.outcome
         
@@ -519,6 +522,8 @@ class NeuralNetwork(object):
         self.outcome = self.calculate_sigmoid(np.dot(self.layer1, self.w2) + self.b2)
 
     def update_w2(self):
+        #print(self.y)
+        #print(self.outcome)
         dloss_doutcomesig = 2 *(self.y-self.outcome)
         doutcomesig_doutcome = self.outcome*(1-self.outcome)
         doutcome_dw2 = self.layer1
@@ -562,7 +567,7 @@ class NeuralNetwork(object):
         self.update_b1()
     
     def train(self, samples, outputs):
-        for episodes in range(10000):
+        for episodes in range(100):
             for i in range(len(samples)):
                 self.x = np.array([samples[i]])
                 self.y = np.array([outputs[i]])
@@ -570,12 +575,67 @@ class NeuralNetwork(object):
                 self.feed_backward()
 
 class SupervisedGame(Game):
-    def __init__(self):
-        Game.__init__(self)
+    def __init__(self, level, delay, hide_car_arms):
+        Game.__init__(self,level, delay, hide_car_arms)
+        self.df = pd.DataFrame(columns=['sensors','action'])
+        self.nn = NeuralNetwork()
+        self.car = SupervisedCar("car8", self.level.car_spawn_x, self.level.car_spawn_y)
     
-    def record(self):
+    def check_action(self,action):
+        if action[pg.K_RIGHT]:
+            return np.array([1,0,0,0,0])
+        elif action[pg.K_LEFT]:
+            return np.array([0,1,0,0,0])
+        elif action[pg.K_UP]:
+            return np.array([0,0,1,0,0])
+        elif action[pg.K_DOWN]:
+            return np.array([0,0,0,1,0])
+        else:
+            return np.array([0,0,0,0,1])
+    
+    def get_sensors(self,arms):
+        sensors = []
+        for arm in arms:
+            sensors.append(arm.arm_length)
+        sensors = np.asarray(sensors)
+        return sensors
         
-        
+    def record_train_data(self,arms,action):
+        sensors = self.get_sensors(arms)
+        action = self.check_action(action)
+        data = {'sensors':sensors,'action':action}
+        self.df = self.df.append(data,ignore_index=True)
+    
+    def from_np_array(self,array_string):
+        array_string = ','.join(array_string.replace('[ ', '[').split())
+        return np.array(ast.literal_eval(array_string))
+    
+    def train(self):
+        data = pd.read_csv("train_data.csv", converters={'sensors': self.from_np_array, 'action': self.from_np_array})
+        self.nn.train(data['sensors'], data['action'])
+            
+    def train_run(self):
+        run = True
+        while run:
+            pg.time.delay(self.delay)
+            for event in pg.event.get():
+                if event.type == pg.QUIT:
+                    self.df.to_csv("train_data.csv", encoding='utf-8', index=False)
+                    run = False
+                    
+            screen.fill((85,96,91))
+
+            self.draw_walls(self.level.walls)
+            self.draw_checkpoints(self.level.checkpoints)
+            self.draw_finish(tile_rows = 2)
+            #printprint(pg.key.get_pressed())
+            
+            self.handle_user_car(pg.key.get_pressed(), self.user_car, self.level.walls)
+            self.record_train_data(self.user_car.arms, pg.key.get_pressed())
+
+            pg.display.flip()
+        pg.quit()
+    
     def run(self):
         run = True
         while run:
@@ -589,10 +649,10 @@ class SupervisedGame(Game):
             self.draw_walls(self.level.walls)
             self.draw_checkpoints(self.level.checkpoints)
             self.draw_finish(tile_rows = 2)
-            
-            #self.handle_cars([saved_ai_car]) #todo
-            self.handle_user_car(pg.key.get_pressed(), self.user_car, self.level.walls)
-
+            #printprint(pg.key.get_pressed())
+            self.car.set_and_draw_sonar_arms(nr_arms = 6, arms_scan_range = 180, number_of_points = 9, distance = 50, size = 4, add_back_arm = True, walls = self.level.walls)
+            action = self.nn.test_sample(self.get_sensors(self.car.arms))
+            self.car.handle_user_input(action, self.level.walls)
 
             pg.display.flip()
         pg.quit()
@@ -645,6 +705,31 @@ class GenecticCar(Car):
         self.x = self.car_spawn_x
         self.y = self.car_spawn_y
         self.angle = 90
+
+
+class SupervisedCar(Car):
+    def __init__(self, car_img, car_spawn_x, car_spawn_y):
+        Car.__init__(self, car_img, car_spawn_x, car_spawn_y)
+    def handle_user_input(self, action, walls):
+        if check_rect_collision(self.rect, walls) == -1:
+            print(action)
+
+            if np.array_equal(action, np.array([1,0,0,0,0])):
+                self.drive_right()
+            elif np.array_equal(action, np.array([0,1,0,0,0])):
+                self.drive_left()
+            elif np.array_equal(action, np.array([0,0,1,0,0])):
+                self.drive_forward()
+            elif np.array_equal(action, np.array([0,0,0,1,0])):
+                self.brake()       
+            else:
+                self.glide()
+                print(1)
+            self.set_new_position()
+
+        else:
+            self.explosion_sheet.update()
+            screen.blit(self.explosion_sheet.sheet, (self.x - self.explosion_sheet.width/2, self.y - self.explosion_sheet.height), self.explosion_sheet.spriteArea)
 
 class ReinforcementCar(Car):
 
@@ -922,10 +1007,11 @@ class GA(object):
 
         return self.new_pop
 
-game = ReinforcementGame(level=Level1(new_round_time=8, min_time_to_reach_first_checkpoint=1, car_spawn_x=250, car_spawn_y=120), delay=30, hide_car_arms=True)
-game.step("forward")
-game.step("forward")
+#game = ReinforcementGame(level=Level1(new_round_time=8, min_time_to_reach_first_checkpoint=1, car_spawn_x=250, car_spawn_y=120), delay=30, hide_car_arms=True)
+#game.step("forward")
+#game.step("forward")
 
-game = SupervisedGame()
+game = SupervisedGame(level=Level1(new_round_time=8, min_time_to_reach_first_checkpoint=1, car_spawn_x=250, car_spawn_y=120), delay=30, hide_car_arms=False)
 #game = Genectic_game(level=Level1(new_round_time=8, min_time_to_reach_first_checkpoint=1), delay=30, hide_car_arms=True, draw_crashed_and_idling_cars=False)
+game.train()
 game.run()
