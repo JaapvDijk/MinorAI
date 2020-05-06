@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+import os
 
 # def sigmoid(s):
 #         return 1/(1+np.exp(-s))
@@ -11,7 +13,7 @@ def softmax(s):
     expo_sum = np.sum(np.exp(s))
     return expo/expo_sum
 
-def show_stats_plot():
+def show_stats_plot(best_fitness, fastest_finish_times):
     fig, axs = plt.subplots(3)
 
     axs[0].plot(range(len(fastest_finish_times)), fastest_finish_times, label='Fastest finish time')
@@ -30,19 +32,18 @@ def show_stats_plot():
     plt.legend()
     plt.show()
 
-def save_fastest_car_to_file(ga):
+def save_fastest_car_to_file(ga, weights_directory):
     if not os.path.exists(weights_directory):
         os.makedirs(weights_directory)
 
-    file_name = 'gen=' + str(total_gens) + ' finish_time=' + str(ga.fastest_car.finish_time) + ' car_id=' + str(ga.fastest_car.id)
+    file_name = 'gen=' + str(ga.total_gens) + ' finish_time=' + str(ga.fastest_car.finish_time) + ' car_id=' + str(ga.fastest_car.id)
 
     text_file = open(weights_directory+file_name+".txt", "w")
 
-    text_file.write(np.array2string(ga.fastest_car.brain.weights1.reshape((ga.fastest_car.brain.nr_of_inputs, 20)), separator=',') +" \n next_weight \n")
-    text_file.write(np.array2string(ga.fastest_car.brain.weights2.reshape((20, ga.fastest_car.brain.nr_of_outputs)), separator=','))
+    text_file.write(np.array2string(ga.fastest_car.brain.weights1.reshape((ga.fastest_car.brain.nr_of_inputs, 10)), separator=',') +" \n next_weight \n")
+    text_file.write(np.array2string(ga.fastest_car.brain.weights2.reshape((10, ga.fastest_car.brain.nr_of_outputs)), separator=','))
 
     text_file.close()
-
 
 def get_saved_car_brain():
     brain = NeuralNetwork()
