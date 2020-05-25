@@ -42,11 +42,12 @@ class Level1(object):
         self.checkpoints = [
         #Checkpoint(x = 490, y = 40, width = 50, height = 160, focus_off_x = 10, focus_off_y = 140, nr = 1),
         Checkpoint(x = 710, y = 40, width = 30, height = 160, focus_off_x = 10, focus_off_y = 100, nr = 1),
-        Checkpoint(x = 1020, y = 40, width = 30, height = 160, focus_off_x = 10, focus_off_y = 140, nr = 2),
-        Checkpoint(x = 1055, y = 575, width = 200, height = 30, focus_off_x = 10, focus_off_y = 10, nr = 3),
-        Checkpoint(x = 315, y = 600, width = 30, height = 85, focus_off_x = 10, focus_off_y = 10, nr = 4),
-        Checkpoint(x = 145, y = 390, width = 100, height = 30, focus_off_x = 50, focus_off_y = 10, nr = 5),
-        Checkpoint(x = 45, y = 210, width = 200, height = 30, focus_off_x = 120, focus_off_y = 10, nr = 6)
+        Checkpoint(x = 1020, y = 40, width = 30, height = 160, focus_off_x = 10, focus_off_y = 50, nr = 2),
+        Checkpoint(x = 1055, y = 575, width = 200, height = 30, focus_off_x = 15, focus_off_y = 10, nr = 3),
+        Checkpoint(x = 315, y = 600, width = 30, height = 85, focus_off_x = 10, focus_off_y = 45, nr = 4),
+        Checkpoint(x = 45, y = 560, width = 100, height = 30, focus_off_x = 90, focus_off_y = 10, nr = 5),
+        Checkpoint(x = 145, y = 400, width = 100, height = 30, focus_off_x = 50, focus_off_y = 10, nr = 6),
+        Checkpoint(x = 45, y = 210, width = 200, height = 30, focus_off_x = 120, focus_off_y = 10, nr = 7)
         ]
         self.walls = [
         Wall(650, 0, 1300, 90),
@@ -55,7 +56,7 @@ class Level1(object):
         Wall(1300, 400, 90, 800),
 
         Wall(650, 45, 80, 100),
-        Wall(930, 170, 80, 100),
+        Wall(900, 200, 120, 100),
         Wall(650, 400, 1300/1.6, 400),
         Wall(850, 620, 410, 95),
         #Wall(1150, 500, 50, 200),
@@ -330,7 +331,7 @@ class Genectic_game(Game):
         self.draw_crashed_and_idling_cars = draw_crashed_and_idling_cars
 
         for i in range(self.ga.pop_size):
-            self.cars.append(GenecticCar("car2", self.level.car_spawn_x, self.level.car_spawn_y))
+            self.cars.append(GenecticCar("car7", self.level.car_spawn_x, self.level.car_spawn_y))
 
     def handle_cars(self, cars, walls, checkpoints):
         for car in self.cars:
@@ -343,7 +344,7 @@ class Genectic_game(Game):
                 else:
                     car.is_idle = True
     
-    def run(self):
+    def run(self, print_fastest_car_info = False):
         run = True
         while run:
             pg.time.delay(self.delay)
@@ -390,6 +391,11 @@ class Genectic_game(Game):
                 self.ga.new_pop = []
                 self.ga.cars = self.cars
                 #self.ga = GA(self.cars, self.level.car_spawn_x, self.level.car_spawn_y)
+                if print_fastest_car_info:
+                    print("checkpoints: " + str(self.ga.fastest_car.checkpoint_times))
+                    print("dist to next: " + str(self.ga.fastest_car.dist_to_next_checkpoint))
+                    print("fitness: " + str(self.ga.fastest_car.fitness))
+                    print("id: " + str(self.ga.fastest_car.id))
 
             text = "Gen: "+str(self.ga.total_gens)
             screen.blit(self.stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,45))
@@ -408,7 +414,7 @@ class Genectic_game(Game):
             text = "New round in: " + str(round(self.level.new_round_time - (self.game_time - self.game_start_time), 1)) + " sec"
             screen.blit(self.stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,136))
 
-            fastest_time = 999
+            fastest_time = np.nan
             if len(self.fastest_finish_times) > 0:
                 fastest_time = self.fastest_finish_times[-1]
             text = "Last finish time: " + str(fastest_time) + " sec"
@@ -510,7 +516,7 @@ class GenecticCar(Car):
             else:
                 total_fitness += 1 * (1/(self.checkpoint_times[i][1] - self.checkpoint_times[i - 1][1]))
         if self.dist_to_next_checkpoint > 2:
-            total_fitness += (1/self.dist_to_next_checkpoint)
+            total_fitness += (1/(self.dist_to_next_checkpoint/5))
 
         if self.nr_of_wrong_checkpoints > 0:
             total_fitness = 0
@@ -571,7 +577,7 @@ class GA(object):
     def __init__(self, cars, car_spawn_x, car_spawn_y):
         self.car_spawn_x = car_spawn_x
         self.car_spawn_y = car_spawn_y
-        self.pop_size = 200
+        self.pop_size = 150
         self.total_gens = 1
         self.cars = cars
         self.new_pop = []
@@ -583,7 +589,7 @@ class GA(object):
         self.number_idle = 0
         self.all_have_crashed = False        
         self.mutation_rate = 0.05
-        self.fastest_car = GenecticCar("car1", self.car_spawn_x, self.car_spawn_y)
+        self.fastest_car = GenecticCar("car8", self.car_spawn_x, self.car_spawn_y)
         self.hide_best_cars = False
         self.hide_mutation_cars = False
         self.hide_crossover_cars = False
@@ -726,42 +732,44 @@ class GA(object):
         
         reached_finish = self.fastest_car.is_finished
         for i in range(len(fast_car_brain_weights1)):
+            weight = fast_car_brain_weights1[i]
             mutate = random.random() < self.mutation_rate
             if mutate and reached_finish:
-                new_val = random.uniform(fast_car_brain_weights1[i] * 0.95, fast_car_brain_weights1[i] * 1.06)
+                new_val = random.uniform(weight * 0.95,weight * 1.07)
                 if new_val > 1:
                     new_val = 1
                 if new_val < 0:
                     new_val = 0
                 new_car.brain.weights1[i] = new_val
             elif mutate and not reached_finish:
-                new_val = random.uniform(fast_car_brain_weights1[i] * 0.6, fast_car_brain_weights1[i] * 1.5)
+                new_val = random.uniform(weight * 0.6, weight * 1.5)
                 if new_val > 1:
                     new_val = 1
                 if new_val < 0:
                     new_val = 0
                 new_car.brain.weights1[i] = new_val
             else:
-                new_car.brain.weights1[i] = fast_car_brain_weights1[i]
+                new_car.brain.weights1[i] = weight
 
         for i in range(len(fast_car_brain_weights2)):
             mutate = random.random() < self.mutation_rate
+            weight = fast_car_brain_weights2[i]
             if mutate and reached_finish:
-                new_val = random.uniform(fast_car_brain_weights2[i] * 0.95, fast_car_brain_weights2[i] * 1.06)
+                new_val = random.uniform(weight * 0.95, weight * 1.07)
                 if new_val > 10:
                     new_val = 10
                 if new_val < 0:
                     new_val = 0
                 new_car.brain.weights2[i] = new_val
             elif mutate and not reached_finish:
-                new_val = random.uniform(fast_car_brain_weights1[i] * 0.6, fast_car_brain_weights1[i] * 1.5)
+                new_val = random.uniform(weight * 0.6, weight * 1.5)
                 if new_val > 10:
                     new_val = 10
                 if new_val < 0:
                     new_val = 0
-                new_car.brain.weights2[i] =new_val
+                new_car.brain.weights2[i] = new_val
             else:
-                new_car.brain.weights2[i] = fast_car_brain_weights2[i]
+                new_car.brain.weights2[i] = weight
         
         inputs = new_car.brain.nr_of_inputs
         outputs = new_car.brain.nr_of_outputs
@@ -793,12 +801,8 @@ class GA(object):
             else:
                 break
 
-    def mutate_fastest(self, amount):
+    def mutate_from_fastest(self, amount):
         self.set_fastest_car()
-        print("checkpoints: " + str(self.fastest_car.checkpoint_times))
-        print("dist to next: " + str(self.fastest_car.dist_to_next_checkpoint))
-        print("fitness: " + str(self.fastest_car.fitness))
-        print("id: " + str(self.fastest_car.id))
         for i in range(amount):
             mutated_car = self.mutate(self.fastest_car)
             self.new_pop.append(mutated_car)
@@ -813,14 +817,14 @@ class GA(object):
         self.set_cum_prob()
         self.best_to_new_pop(amount = int(self.pop_size * 0.02))
         self.crossover(amount = int(self.pop_size * 0.4))
-        self.mutate_fastest(amount = int(self.pop_size * 0.4))
+        self.mutate_from_fastest(amount = int(self.pop_size * 0.4))
         self.fill_new_pop_with_random_cars()
 
         return self.new_pop
-
-game = ReinforcementGame(level=Level1(new_round_time=8, min_time_to_reach_first_checkpoint=1, car_spawn_x=250, car_spawn_y=120), delay=30, hide_car_arms=True)
+ 
+game = ReinforcementGame(level=Level1(new_round_time=8, min_time_to_reach_first_checkpoint=1), delay=30, hide_car_arms=True)
 game.step("forward")
 game.step("forward")
 
-game = Genectic_game(level=Level1(new_round_time=8, min_time_to_reach_first_checkpoint=1), delay=30, hide_car_arms=True, draw_crashed_and_idling_cars=False)
-game.run()
+game = Genectic_game(level=Level1(new_round_time=5, min_time_to_reach_first_checkpoint=1), delay=30, hide_car_arms=True, draw_crashed_and_idling_cars=False)
+game.run(print_fastest_car_info=True)
