@@ -29,12 +29,6 @@ def draw_walls(walls):
     for wall in walls:
         pg.draw.rect(screen, wall.colour, [wall.rect.x, wall.rect.y, wall.rect.width, wall.rect.height])
 
-def draw_checkpoints(checkpoints):
-    for checkpoint in checkpoints:
-        pg.draw.rect(screen, checkpoint.colour, [checkpoint.x, checkpoint.y, checkpoint.rect.width, checkpoint.rect.height])
-        pg.draw.rect(screen, (255,255,50), [checkpoint.focus_point[0], checkpoint.focus_point[1], 6, 6])
-        screen.blit(checkpoint_font.render(str(checkpoint.nr), 1, (0,0,0)),(checkpoint.focus_point[0] - 10,checkpoint.focus_point[1] - 20))
-
 def draw_finish(tile_rows):
     finish = checkpoints[-1]
 
@@ -55,6 +49,8 @@ def draw_finish(tile_rows):
             tile_x += tile_size
         tile_y += tile_size
 
+
+
 def handle_user_car(keys, user_car):
     user_car.handle_user_input(keys)
     user_car.set_current_checkpoint_and_distance(checkpoints)
@@ -72,15 +68,6 @@ def handle_cars(cars):
             else:
                 car.is_idle = True
 
-def show_stats_plot():
-    fig, axs = plt.subplots(1)
-
-    axs[0].plot(range(len(fastest_finish_times)), fastest_finish_times, label='Fastest finish time')
-    axs[0].xlabel = "Generation"
-    axs[0].ylabel = "Fastest time"
-
-    plt.legend()
-    plt.show()
 
 def reset_car(car):
     car.x = car_spawn_x
@@ -143,6 +130,26 @@ class Arm():
         self.angle_from_car = angle
         self.arm_length = len(self.points)
 
+class NeuralNetwork(object):
+    def __init__(self):
+        self.nr_of_inputs = 6
+        self.nr_of_outputs = 4
+        self.weights1 = np.random.rand(self.nr_of_inputs,20)
+        self.weights2 = np.random.rand(20,self.nr_of_outputs)
+
+    def feedforward(self, x):
+        self.layer1 = relu(np.dot(x, self.weights1))
+        self.output = softmax(np.dot(self.layer1, self.weights2))
+        return np.argmax((self.output[0]))
+
+class CarType(Enum):
+    CROSSOVER = 1
+    MUTATION = 2
+    BEST = 3
+    SAVED = 4
+    RANDOM = 5
+    USER = 6
+
 class Levels(Enum):
     BONOBORACING123 = 1
     TURNAROUNDANDAROUND = 2
@@ -153,12 +160,13 @@ class Car():
         self.y = car_spawn_y
         self.angle = 90
         self.vel = 0
-        self.max_speed = 5
+        self.max_speed = 19
         self.brake_speed = -1
         self.drive_speed = 1
         self.id = id(self)
+        self.car_type = CarType.CROSSOVER
         
-        self.image = pg.image.load("images/cars/"+car_img+".png")
+        self.image = pg.image.load("jaap_game/images/cars/"+car_img+".png")
         self.rect = self.image.get_rect()
         self.rect.center = self.x, self.y
         self.arms = []
@@ -170,8 +178,8 @@ class Car():
         self.is_finished = False
         self.is_best = False
         self.colour = pg.color.THECOLORS["black"]
-        self.explosion_sheet = Sprite(pg.image.load("images/explosion.png"), 200, 240, 0, False)
-        self.fire_sheet = Sprite(pg.image.load("images/fire.png"), 20, 20, 0, True)
+        self.explosion_sheet = Sprite(pg.image.load("jaap_game/images/explosion.png"), 200, 240, 0, False)
+        self.fire_sheet = Sprite(pg.image.load("jaap_game/images/fire.png"), 20, 20, 0, True)
 
         self.current_checkpoint_nr = 0
         self.nr_of_wrong_checkpoints = 0
@@ -184,20 +192,7 @@ class Car():
         self.prob = 0
         self.cum_prob = 0
 
-    def set_fitness(self):
-        total_fitness = 0
-
-        for i in range(len(self.checkpoint_times)):
-            if i == 0:
-                total_fitness += 0.2
-            else:
-                total_fitness += 1 * (1/(self.checkpoint_times[i][1] - self.checkpoint_times[i - 1][1]))
-        if self.dist_to_next_checkpoint > 2:
-            total_fitness += (1/self.dist_to_next_checkpoint)
-
-        if self.nr_of_wrong_checkpoints > 0:
-            total_fitness = 0
-        self.fitness = total_fitness
+        self.brain = NeuralNetwork()
 
     def drive(self, walls):
         self.rect.center = self.x, self.y
@@ -206,6 +201,23 @@ class Car():
             return
         self.n_drive()
         
+    def n_drive(self):
+        arm_lengths = []
+        for arm in self.arms:
+            arm_lengths.append(arm.arm_length)
+        direction = self.brain.feedforward([arm_lengths])
+        if direction == 0:
+            self.drive_forward()
+        if direction == 1:
+            self.brake()
+        if direction == 2:
+            self.angle += -6
+        if direction == 3:
+            self.angle += 6
+        if direction == 4:
+            pass
+        self.set_new_position()
+
     def handle_user_input(self, keys):
         if check_rect_collision(self.rect, walls) == -1:
             if keys[pg.K_LEFT]:
@@ -216,32 +228,10 @@ class Car():
                 self.drive_forward()
             if keys[pg.K_DOWN]:
                 self.brake()
-            if keys[pg.K_s]:
-                show_stats_plot()
-            if keys[pg.K_b]:
-                global hide_best_cars
-                hide_best_cars = not hide_best_cars
-            if keys[pg.K_m]:
-                global hide_mutation_cars
-                hide_mutation_cars = not hide_mutation_cars
-            if keys[pg.K_c]:
-                global hide_crossover_cars
-                hide_crossover_cars = not hide_crossover_cars
-            if keys[pg.K_r]:
-                global hide_random_cars
-                hide_random_cars = not hide_random_cars                         
-            self.set_new_position()
-        else:
-            self.explosion_sheet.update()
-            screen.blit(self.explosion_sheet.sheet, (self.x - self.explosion_sheet.width/2, self.y - self.explosion_sheet.height), self.explosion_sheet.spriteArea)
 
     def drive_forward(self):
         if self.vel + self.drive_speed <= self.max_speed:
             self.increase_speed(self.drive_speed)
-    
-    def glide(self):
-        if self.vel + self.brake_speed / 8 >= 0:
-            self.increase_speed(self.brake_speed / 8)
 
     def brake(self):
         if abs(self.vel + self.brake_speed) <= self.max_speed:
@@ -272,6 +262,7 @@ class Car():
 
     def set_and_draw_sonar_arms(self, nr_arms, arms_scan_range, number_of_points, distance, size, add_back_arm = False):
         self.arms = []
+        self.brain.nr_of_inputs = nr_arms
         arms_spread = 0
         if nr_arms > 1:
             arms_spread = arms_scan_range / (nr_arms - 1)
@@ -326,6 +317,7 @@ class Car():
             next_checkpoint = checkpoints[self.current_checkpoint_nr]
         self.dist_to_next_checkpoint = math.hypot(self.x - next_checkpoint.focus_point[0], self.y - next_checkpoint.focus_point[1])
 
+
 #Level specific
 level_to_load = Levels.BONOBORACING123
 car_spawn_x = 0
@@ -334,9 +326,12 @@ new_gen_time = 0
 min_time_to_reach_first_checkpoint = 0
 checkpoints = []
 walls = []
+pop_size = 300
 
 #General
 delay = 20
+cars = get_initial_pop()
+weights_directory = 'jaap_game/weights/'+str(time.time())+'/'
 
 #Time related
 total_gens = 1
@@ -345,10 +340,18 @@ game_time = 0
 game_start_time = 0
 
 #Visibility
+hide_best_cars = False
+hide_mutation_cars = False
+hide_crossover_cars = False
+hide_random_cars = False
 hide_car_arms = True
 
 #Other cars
 user_car = Car("car4")
+user_car.car_type = CarType.USER
+saved_ai_car = Car("car8")
+saved_ai_car.brain = get_saved_car_brain()
+saved_ai_car.car_type = CarType.SAVED
 
 #Plot related
 fastest_finish_times = []
@@ -402,7 +405,7 @@ if level_to_load == Levels.TURNAROUNDANDAROUND:
 
     car_spawn_x = 70
     car_spawn_y = 200
-    new_gen_time = 200
+    new_gen_time = 5
     min_time_to_reach_first_checkpoint = 0.7
 
 run = True
@@ -421,21 +424,49 @@ while run:
     draw_checkpoints(checkpoints)
     draw_finish(tile_rows = 2)
 
+    handle_cars(cars)
+    handle_cars([saved_ai_car])
     handle_user_car(pg.key.get_pressed(), user_car)
 
-    if (game_time - game_start_time) > new_gen_time or user_car.is_finished:
+    ga = GA(cars)
+    if (game_time - game_start_time) > new_gen_time or ga.all_have_crashed: #or ga.fastest_car.is_finished or ga.fastest_car.is_crashed:
         total_gens += 1
 
         game_start_time = game_time
-        # fastest_finish_times vullen met de finish times voor die dikke plots jeweet
+        
+        new_pop = ga.get_new_gen()
+        cars = new_pop
+
+        if ga.fastest_car.finish_time > 0:
+            fastest_finish_times.append(ga.fastest_car.finish_time)
+        else:
+            fastest_finish_times.append(np.nan)
+
+        best_fitness.append(ga.fastest_car.fitness)
+
+        save_fastest_car_to_file(ga)
 
         user_car = Car("car4")
+        saved_ai_car = Car("car8")
+        saved_ai_car.brain = get_saved_car_brain()
 
-    text = "New round in: " + str(round(game_time - game_start_time, 1)) + " : " + str(new_gen_time)
+    text = "Gen: "+str(total_gens)
     screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,45))
-    text = "Fastest finish time: -"
+    text = "Finished: "+str(ga.number_finished)+"/"+str(pop_size)
     screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,58))
-    #blit best finish time
+    text = "Crashed: "+str(ga.number_crashed)+"/"+str(pop_size) 
+    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,71))
+    text = "Idles deleted: " + str(ga.number_idle)+"/"+str(pop_size)
+    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,84))
+    text = "Fastest car: " + str(ga.fastest_car.id)
+    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,97))
+    text = "New round in: " + str(round(game_time - game_start_time, 1)) + " : " + str(new_gen_time)
+    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,110))
+    text = "Fastest: " + str(ga.fastest_car.finish_time)
+    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["white"]),(55,123))
+
+    text = "Hotkeys: Hide (R)andoms, (C)rossovers, (B)est, (M)utations - (S)tats"
+    screen.blit(stats_font.render(text, 1, pg.color.THECOLORS["black"]),(55,750))
 
     pg.display.flip()
 pg.quit()
