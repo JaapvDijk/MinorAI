@@ -7,14 +7,14 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.optimizers import Adam
 import os # for creating directories
-from Reinforcement_game_visual import Env
+from reinforcement_game_velocity import Env
 
 
 
 env = Env() # initialise environment
 
-state_size = 5
-action_size = 3
+state_size = 6
+action_size = 4
 
 batch_size = 32
 n_episodes = 1001 # n games we want agent to play (default 1001)
@@ -29,7 +29,7 @@ class DQNAgent:
         self.state_size = state_size
         self.action_size = action_size
         self.memory = deque(maxlen=2000) # double-ended queue; acts like list, but elements can be added/removed from either end
-        self.gamma = 0.5 # decay or discount rate: enables agent to take into account future actions in addition to the immediate ones, but discounted at this rate
+        self.gamma = 0.95 # decay or discount rate: enables agent to take into account future actions in addition to the immediate ones, but discounted at this rate
         self.epsilon = 1.0 # exploration rate: how much to act randomly; more initially than later due to epsilon decay
         self.epsilon_decay = 0.8 # decrease number of random explorations as the agent's performance (hopefully) improves over time
         self.epsilon_min = 0.01 # minimum amount of random exploration permitted

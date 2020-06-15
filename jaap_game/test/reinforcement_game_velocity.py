@@ -65,7 +65,7 @@ class Car():
     def __init__(self, car_img, x, y):
         self.angle = 90
 
-        self.v = 0
+        self.v = 0.1
         self.a = 0.05
 
         self.next_checkpoint = 0 
@@ -97,23 +97,23 @@ class Car():
         self.arms = []
 
         left_arm = Arm()
-        left_arm.add_sensors(10,90,3, self.rect.x, self.rect.y)
+        left_arm.add_sensors(20,90,3, self.rect.x, self.rect.y)
         self.arms.append(left_arm)
 
         left_arm_forward = Arm()
-        left_arm_forward.add_sensors(10,45,3, self.rect.x, self.rect.y)
+        left_arm_forward.add_sensors(20,45,3, self.rect.x, self.rect.y)
         self.arms.append(left_arm_forward)
 
         forward_arm = Arm()
-        forward_arm.add_sensors(10,0,3, self.rect.x, self.rect.y)
+        forward_arm.add_sensors(20,0,3, self.rect.x, self.rect.y)
         self.arms.append(forward_arm)
 
         right_arm_forward = Arm()
-        right_arm_forward.add_sensors(10,315,3, self.rect.x, self.rect.y)
+        right_arm_forward.add_sensors(20,315,3, self.rect.x, self.rect.y)
         self.arms.append(right_arm_forward)
 
         right_arm = Arm()
-        right_arm.add_sensors(10,270,3, self.rect.x, self.rect.y)
+        right_arm.add_sensors(20,270,3, self.rect.x, self.rect.y)
         self.arms.append(right_arm)
     
         
@@ -127,6 +127,10 @@ class Car():
             self.rotate(-5)
             self.update_coordinate()
         elif direction == 2:
+            self.v += 0.25
+            self.update_coordinate()
+        elif direction == 3:
+            self.v -= 0.1
             self.update_coordinate()
 
     def check_collsion_arm_wall(self,walls):
@@ -191,8 +195,8 @@ class Car():
         
 
     def update_coordinate(self):
-        self.rect.x += 5 * math.sin(math.radians(self.angle))
-        self.rect.y += 5 * math.cos(math.radians(self.angle))
+        self.rect.x += self.v * math.sin(math.radians(self.angle))
+        self.rect.y += self.v * math.cos(math.radians(self.angle))
     
     def handle_user_input(self):
         if pg.key.get_pressed()[pg.K_LEFT]:
@@ -279,7 +283,7 @@ class Env(object):
         done = self.agent.check_collsion_car_wall(self.walls)
         self.agent.update_sensors()
         arm1,arm2,arm3,arm4,arm5 = self.agent.check_collsion_arm_wall(self.walls)
-        next_state = [arm1,arm2,arm3,arm4,arm5]
+        next_state = [arm1,arm2,arm3,arm4,arm5,self.agent.v]
 
         return next_state, self.reward, done
     
@@ -288,11 +292,12 @@ class Env(object):
         self.agent.rect.y = 50
         self.agent.angle = 90
         self.reward = 0
+        self.agent.v = 0
         self.agent.next_checkpoint = 0
         for checkpoint in self.checkpoints:
             checkpoint.touched = False
         arm1,arm2,arm3,arm4,arm5 = self.agent.check_collsion_arm_wall(self.walls)
-        return np.array([arm1,arm2,arm3,arm4,arm5])
+        return np.array([arm1,arm2,arm3,arm4,arm5,self.agent.v])
     
     def draw(self):
         # run = True
