@@ -97,23 +97,23 @@ class Car():
         self.arms = []
 
         left_arm = Arm()
-        left_arm.add_sensors(20,90,3, self.rect.x, self.rect.y)
+        left_arm.add_sensors(30,90,3, self.rect.x, self.rect.y)
         self.arms.append(left_arm)
 
         left_arm_forward = Arm()
-        left_arm_forward.add_sensors(20,45,3, self.rect.x, self.rect.y)
+        left_arm_forward.add_sensors(30,45,3, self.rect.x, self.rect.y)
         self.arms.append(left_arm_forward)
 
         forward_arm = Arm()
-        forward_arm.add_sensors(20,0,3, self.rect.x, self.rect.y)
+        forward_arm.add_sensors(30,0,3, self.rect.x, self.rect.y)
         self.arms.append(forward_arm)
 
         right_arm_forward = Arm()
-        right_arm_forward.add_sensors(20,315,3, self.rect.x, self.rect.y)
+        right_arm_forward.add_sensors(30,315,3, self.rect.x, self.rect.y)
         self.arms.append(right_arm_forward)
 
         right_arm = Arm()
-        right_arm.add_sensors(20,270,3, self.rect.x, self.rect.y)
+        right_arm.add_sensors(30,270,3, self.rect.x, self.rect.y)
         self.arms.append(right_arm)
     
         
@@ -156,6 +156,14 @@ class Car():
         #print(self.next_checkpoint)
         return math.sqrt((checkpoints[self.get_next_checkpoint(checkpoints)].rect.center[0] - self.rect.x) **2 + (checkpoints[self.get_next_checkpoint(checkpoints)].rect.center[1] - self.rect.y) **2)
     
+    def normalize(self, state):
+        for item in state:
+            item = item / sum(state)
+        return state
+
+
+
+
     #recent change
     def check_collsion_car_checkpoint(self, checkpoints):
         if self.rect.colliderect(checkpoints[self.next_checkpoint]):
@@ -267,7 +275,7 @@ class Env(object):
 
 
 
-        self.agent = Car("car4", 220, 50)
+        self.agent = Car("car4", 250, 100)
         self.hide_car_arms = False
         self.run = True
         self.reward = 0
@@ -283,13 +291,13 @@ class Env(object):
         done = self.agent.check_collsion_car_wall(self.walls)
         self.agent.update_sensors()
         arm1,arm2,arm3,arm4,arm5 = self.agent.check_collsion_arm_wall(self.walls)
-        next_state = [arm1,arm2,arm3,arm4,arm5,self.agent.v]
+        next_state = self.agent.normalize([arm1,arm2,arm3,arm4,arm5,self.agent.v])
 
         return next_state, self.reward, done
     
     def reset(self):
-        self.agent.rect.x = 220
-        self.agent.rect.y = 50
+        self.agent.rect.x = 250
+        self.agent.rect.y = 100
         self.agent.angle = 90
         self.reward = 0
         self.agent.v = 0
@@ -297,7 +305,7 @@ class Env(object):
         for checkpoint in self.checkpoints:
             checkpoint.touched = False
         arm1,arm2,arm3,arm4,arm5 = self.agent.check_collsion_arm_wall(self.walls)
-        return np.array([arm1,arm2,arm3,arm4,arm5,self.agent.v])
+        return self.agent.normalize([arm1,arm2,arm3,arm4,arm5,self.agent.v])
     
     def draw(self):
         # run = True
@@ -339,8 +347,8 @@ class Env(object):
         return True
             
 
-env = Env()
-env.draw()
+# env = Env()
+# env.draw()
 
 
 
