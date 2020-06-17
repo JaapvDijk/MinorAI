@@ -157,8 +157,9 @@ class Car():
         return math.sqrt((checkpoints[self.get_next_checkpoint(checkpoints)].rect.center[0] - self.rect.x) **2 + (checkpoints[self.get_next_checkpoint(checkpoints)].rect.center[1] - self.rect.y) **2)
     
     def normalize(self, state):
-        for item in state:
-            item = item / sum(state)
+        sum_state = sum(state)
+        for i in range(len(state)):
+            state[i] = state[i] / sum_state
         return state
 
 
