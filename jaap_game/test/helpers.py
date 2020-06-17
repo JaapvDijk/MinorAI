@@ -7,13 +7,17 @@ import os
 from math import acos, degrees, sqrt
 from sklearn.preprocessing import StandardScaler
 import pickle
-import math 
+import math
 
-def sigmoid(s):
-        return 1/(1+np.exp(-s))
+def norm(x):
+    np.asarray(x)
+    return np.tanh(x)
 
-def relu(s):
-   return np.maximum(0,s)
+def sigmoid(x):
+        return 1/(1+np.exp(-x))
+
+def relu(x):
+   return np.maximum(0,x)
 
 def softmax(s):
     expo = np.exp(s)
@@ -27,32 +31,41 @@ def value_between_zero_and_one(val):
         val = 0
     return val
 
-def show_stats_plot(best_fitness, fastest_finish_times, fastest_car_direction_hist):
-    fig, axs = plt.subplots(3)
+def show_stats_plot(best_fitness, fastest_finish_times, fastest_car_direction_hist, best_times_alive):
+    if len(best_fitness) > 0:
+        fig, axs = plt.subplots(4)
 
-    axs[0].plot(range(len(fastest_finish_times)), np.array(fastest_finish_times), label = "Fastest times per generation")
-    axs[0].xlabel = "Generation"
-    axs[0].ylabel = "Fastest time"
+        axs[0].plot(range(len(fastest_finish_times)), np.array(fastest_finish_times), label = "Fastest times per generation")
+        axs[0].xlabel = "Generation"
+        axs[0].ylabel = "fastest_finish_times"
 
-    axs[1].plot(range(len(best_fitness)), best_fitness, label = "Highest fitness per generation")
-    axs[1].xlabel = "Generation"
-    axs[1].ylabel = "Total pop fit"
+        axs[1].plot(range(len(best_fitness)), best_fitness, label = "Highest fitness per generation")
+        axs[1].xlabel = "Generation"
+        axs[1].ylabel = "best_fitness"
 
-    for i in range(len(fastest_car_direction_hist[0])):
-        if i == 0: direction = "right"
-        if i == 1: direction = "left"
-        if i == 2: direction = "nothing/forward"
-        axs[2].plot(range(len(fastest_car_direction_hist)), np.asarray(fastest_car_direction_hist)[:,i], label = direction)
-    axs[2].xlabel = "Direction"
-    axs[2].ylabel = "Total times"
-    #axs[2].get_yaxis().set_visible(False)
-    #(np.array(fastest_finish_times) / 5)
-    # axs[2].plot(range(len(best_fitness)), best_fitness)
-    # axs[2].plot(range(len(fastest_finish_times)), fastest_finish_times)
-    # axs[2].xlabel = "Generation"
-    # axs[2].ylabel = "Total pop fit"
-    plt.legend()
-    plt.show()
+
+        axs[2].plot(range(len(best_times_alive)), best_times_alive, label = "best_times_alive")
+        axs[2].xlabel = "Generation"
+        axs[2].ylabel = "best_times_alive"
+
+        for i in range(len(fastest_car_direction_hist[0])):
+            if i == 0: direction = "right"
+            if i == 1: direction = "left"
+            if i == 2: direction = "brake"
+            if i == 3: direction = "acc"
+            if i == 4: direction = "forward"
+            if i == 5: direction = "glide"
+            axs[3].plot(range(len(fastest_car_direction_hist)), np.asarray(fastest_car_direction_hist)[:,i], label = direction)
+        axs[3].xlabel = "Direction"
+        axs[3].ylabel = "Total times"
+        #axs[2].get_yaxis().set_visible(False)
+        #(np.array(fastest_finish_times) / 5)
+        # axs[2].plot(range(len(best_fitness)), best_fitness)
+        # axs[2].plot(range(len(fastest_finish_times)), fastest_finish_times)
+        # axs[2].xlabel = "Generation"
+        # axs[2].ylabel = "Total pop fit"
+        plt.legend()
+        plt.show()
 
 def save_fastest_car_to_file(ga, weights_directory):
     if not os.path.exists(weights_directory):
