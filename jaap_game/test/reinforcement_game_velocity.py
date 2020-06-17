@@ -38,6 +38,11 @@ class CheckPoint(Wall):
         self.colour = pg.color.THECOLORS["yellow"]
         self.touched = False
 
+class FocusPoint(Wall):
+    def __init__(self, x,y, width, height):
+        super().__init__(x,y, width, height)
+        self.colour = pg.color.THECOLORS["red"]
+
 class Sensors(object):
     def __init__(self, angle, randians, player_x, player_y):
         self.image = pg.Surface((2, 2))
@@ -60,7 +65,7 @@ class Car():
     def __init__(self, car_img, x, y):
         self.angle = 90
 
-        self.v = 0
+        self.v = 0.1
         self.a = 0.05
 
         self.next_checkpoint = 0 
@@ -122,6 +127,10 @@ class Car():
             self.rotate(-5)
             self.update_coordinate()
         elif direction == 2:
+            self.v += 0.25
+            self.update_coordinate()
+        elif direction == 3:
+            self.v -= 0.1
             self.update_coordinate()
 
     def check_collsion_arm_wall(self,walls):
@@ -144,18 +153,41 @@ class Car():
                 return True
     
     def check_distance_car_checkpoint(self, checkpoints):
-        print(self.next_checkpoint)
-        return math.sqrt((checkpoints[self.next_checkpoint].rect.center[0] - self.rect.x) **2 + (checkpoints[self.next_checkpoint].rect.center[1] - self.rect.y) **2)
+        #print(self.next_checkpoint)
+        return math.sqrt((checkpoints[self.get_next_checkpoint(checkpoints)].rect.center[0] - self.rect.x) **2 + (checkpoints[self.get_next_checkpoint(checkpoints)].rect.center[1] - self.rect.y) **2)
     
+    def normalize(self, state):
+        sum_state = sum(state)
+        for i in range(len(state)):
+            state[i] = state[i] / sum_state
+        return state
+
+
+
+
+    #recent change
     def check_collsion_car_checkpoint(self, checkpoints):
-        for index,checkpoint in enumerate(checkpoints):
-            if self.rect.colliderect(checkpoint.rect):
-                if checkpoint.touched == False:
-                    checkpoint.touched = True
-                    self.next_checkpoint +=1
+        if self.rect.colliderect(checkpoints[self.next_checkpoint]):
+            #if checkpoint.touched == False:
+            checkpoints[self.next_checkpoint].touched = True
+            self.next_checkpoint +=1
+
+        # for index,checkpoint in enumerate(checkpoints):
+        #     if self.rect.colliderect(checkpoint.rect):
+        #         if checkpoint.touched == False:
+        #             checkpoint.touched = True
+        #             self.next_checkpoint +=1
                     #return (index + 1)
         #return 0
     
+    def get_next_checkpoint(self, checkpoints):
+        if self.next_checkpoint==len(checkpoints):
+            print(1)
+            for checkpoint in checkpoints:
+                checkpoint.touched = False
+            self.next_checkpoint = 0
+        return self.next_checkpoint
+
     def rotate(self, angle):
         self.angle += angle
         if self.angle > 360:
@@ -172,8 +204,8 @@ class Car():
         
 
     def update_coordinate(self):
-        self.rect.x += 5 * math.sin(math.radians(self.angle))
-        self.rect.y += 5 * math.cos(math.radians(self.angle))
+        self.rect.x += self.v * math.sin(math.radians(self.angle))
+        self.rect.y += self.v * math.cos(math.radians(self.angle))
     
     def handle_user_input(self):
         if pg.key.get_pressed()[pg.K_LEFT]:
@@ -200,7 +232,7 @@ class Env(object):
                 Wall(1300, 400, 90, 800),
                 Wall(820, 190, 180, 100), 
                 Wall(650, 400, 1300/1.6, 400),
-                Wall(850, 620, 410, 95),
+                Wall(750, 620, 410, 95),
                 Wall(200, 750, 400, 130),
                 Wall(270, 570, 250, 60),
                 Wall(20, 400, 250, 60),
@@ -208,6 +240,7 @@ class Env(object):
         ]
 
         self.checkpoints = [
+
             CheckPoint(x = 350, y = 120, width = 30, height = 150),
             CheckPoint(x = 450, y = 120, width = 30, height = 150),
             CheckPoint(x = 600, y = 120, width = 30, height = 150),
@@ -221,19 +254,29 @@ class Env(object):
             CheckPoint(x = 1150, y = 650, width = 200, height = 30),
             #CheckPoint(x = 1000, y = 700, width = 30, height = 150),
             CheckPoint(x = 800, y = 700, width = 30, height = 150),
-            CheckPoint(x = 600, y = 680, width = 30, height = 150),
+            CheckPoint(x = 500, y = 650, width = 30, height = 150),
             CheckPoint(x = 300, y = 630, width = 30, height = 100),
             CheckPoint(x = 200, y = 630, width = 30, height = 100),
             CheckPoint(x = 100, y = 580, width = 100, height = 30),
             CheckPoint(x = 150, y = 490, width = 200, height = 30),
             CheckPoint(x = 200, y = 400, width = 100, height = 30),
             CheckPoint(x = 100, y = 260, width = 130, height = 30),
-
+            
+           
+            
             # CheckPoint(x = 145, y = 400, width = 100, height = 30),
             # CheckPoint(x = 45, y = 210, width = 200, height = 30)
         ]
 
-        self.agent = Car("car4", 300, 90)
+        self.focus_points = []
+
+        for checkpoint in self.checkpoints:
+            focuspoint = FocusPoint(checkpoint.rect.center[0], checkpoint.rect.center[1],2,2)
+            self.focus_points.append(focuspoint)
+
+
+
+        self.agent = Car("car4", 250, 100)
         self.hide_car_arms = False
         self.run = True
         self.reward = 0
@@ -249,26 +292,27 @@ class Env(object):
         done = self.agent.check_collsion_car_wall(self.walls)
         self.agent.update_sensors()
         arm1,arm2,arm3,arm4,arm5 = self.agent.check_collsion_arm_wall(self.walls)
-        next_state = [arm1,arm2,arm3,arm4,arm5]
+        next_state = self.agent.normalize([arm1,arm2,arm3,arm4,arm5,self.agent.v])
 
         return next_state, self.reward, done
     
     def reset(self):
-        self.agent.rect.x = 300
-        self.agent.rect.y = 90
+        self.agent.rect.x = 250
+        self.agent.rect.y = 100
         self.agent.angle = 90
         self.reward = 0
+        self.agent.v = 0
         self.agent.next_checkpoint = 0
         for checkpoint in self.checkpoints:
             checkpoint.touched = False
         arm1,arm2,arm3,arm4,arm5 = self.agent.check_collsion_arm_wall(self.walls)
-        return np.array([arm1,arm2,arm3,arm4,arm5])
+        return self.agent.normalize([arm1,arm2,arm3,arm4,arm5,self.agent.v])
     
     def draw(self):
-        #run = True
-        #screen = pg.display.set_mode((screen_width, screen_height))
-        #while run:
-            #self.agent.handle_user_input()
+        # run = True
+        # screen = pg.display.set_mode((screen_width, screen_height))
+        # while run:
+                #self.agent.handle_user_input()
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 return False
@@ -291,8 +335,13 @@ class Env(object):
         for wall in self.walls:
             pg.draw.rect(screen, wall.colour, [wall.rect.x, wall.rect.y, wall.rect.width, wall.rect.height])
         
-        for checkpoint in self.checkpoints:
-            pg.draw.rect(screen, checkpoint.colour, [checkpoint.rect.x, checkpoint.rect.y, checkpoint.rect.width, checkpoint.rect.height])
+        # for checkpoint in self.checkpoints:
+        #     pg.draw.rect(screen, checkpoint.colour, [checkpoint.rect.x, checkpoint.rect.y, checkpoint.rect.width, checkpoint.rect.height])
+        
+        for focuspoint in self.focus_points:
+            pg.draw.rect(screen, focuspoint.colour, [focuspoint.rect.x, focuspoint.rect.y, focuspoint.rect.width, focuspoint.rect.height])
+
+        pg.draw.line(screen, pg.color.THECOLORS["green"] , (self.agent.rect.center), (self.checkpoints[self.agent.get_next_checkpoint(self.checkpoints)].rect.center), 1)
         textsurface = font.render(str(self.reward), False, (0, 0, 0))
         screen.blit(textsurface,(500,500))
         pg.display.flip()
