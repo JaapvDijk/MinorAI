@@ -8,6 +8,7 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras.optimizers import Adam
 import os # for creating directories
 from reinforcement_game_velocity import Env
+import matplotlib.pyplot as plt
 
 
 
@@ -17,7 +18,7 @@ state_size = 6
 action_size = 4
 
 batch_size = 32
-n_episodes = 1001 # n games we want agent to play (default 1001)
+n_episodes = 100000 # n games we want agent to play (default 1001)
 output_dir = 'model_output/reinforcement/'
 
 if not os.path.exists(output_dir):
@@ -82,6 +83,7 @@ agent = DQNAgent(state_size, action_size) # initialise agent
 
 
 done = False
+checkpoints_history = []
 for e in range(n_episodes): # iterate over new episodes of the game
     episode_reward = 0
     state = env.reset() # reset state at start of each new episode of the game
@@ -98,7 +100,7 @@ for e in range(n_episodes): # iterate over new episodes of the game
         agent.remember(state, action, reward, next_state, done) # remember the previous timestep's state, actions, reward, etc.        
         state = next_state # set "current state" for upcoming iteration to the current next state        
         if done or timestamp==100000:
-            print(e)
+            checkpoints_history.append(env.agent.next_checkpoint)
             # episode ends if agent drops pole or we reach timestep 5000
             # print("episode: {}/{}, score: {}, e: {:.2}" # print the episode's score and agent's epsilon
             #       .format(e, n_episodes, episode_reward, agent.epsilon))
@@ -111,3 +113,8 @@ for e in range(n_episodes): # iterate over new episodes of the game
         agent.replay(batch_size) # train the agent by replaying the experiences of the episode
     if e % 50 == 0:
         agent.save(output_dir + "weights_" + '{:04d}'.format(e) + ".hdf5")
+    if e == 7000:
+        plt.plot(checkpoints_history)
+        plt.xlabel("episodes")
+        plt.ylabel("checkpoints")
+        plt.show()

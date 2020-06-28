@@ -552,7 +552,7 @@ class Genectic_game(Game):
         pg.draw.line(screen, (0,0,0), (630, 430), (630, 430 - (self.current_best_car.vel*5)), 12)
 
         screen.blit(pg.image.load("jaap_game/images/cars/car8.png"), (500,400))
-        pg.draw.line(screen, (0,0,0), (530, 430), (530, 430 - (self.saved_ai_car.vel*5)), 12)
+        pg.draw.line(screen, (0,0,0), (530, 430), (530, 430 - (self.saved_ai_car.vel*5)), 12)#
             
 
     def handle_commands(self, keys):

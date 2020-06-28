@@ -157,6 +157,7 @@ class Car():
         return math.sqrt((checkpoints[self.get_next_checkpoint(checkpoints)].rect.center[0] - self.rect.x) **2 + (checkpoints[self.get_next_checkpoint(checkpoints)].rect.center[1] - self.rect.y) **2)
     
     def normalize(self, state):
+        #print(state)
         sum_state = sum(state)
         for i in range(len(state)):
             state[i] = state[i] / sum_state
@@ -182,7 +183,7 @@ class Car():
     
     def get_next_checkpoint(self, checkpoints):
         if self.next_checkpoint==len(checkpoints):
-            print(1)
+            #print(1)
             for checkpoint in checkpoints:
                 checkpoint.touched = False
             self.next_checkpoint = 0
@@ -305,6 +306,7 @@ class Env(object):
         self.agent.next_checkpoint = 0
         for checkpoint in self.checkpoints:
             checkpoint.touched = False
+        self.agent.update_sensors()
         arm1,arm2,arm3,arm4,arm5 = self.agent.check_collsion_arm_wall(self.walls)
         return self.agent.normalize([arm1,arm2,arm3,arm4,arm5,self.agent.v])
     
