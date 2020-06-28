@@ -5,16 +5,15 @@ import numpy as np
 import time
 import datetime
 import glob
+import pandas as pd
+import ast
+import sys
 from enum import Enum
 from enums import *
 from helpers import *
-import pandas as pd
-import ast
 from sklearn.preprocessing import StandardScaler
-from sklearn import preprocessing
-import sys
 
-if not sys.warnoptions:
+if not sys.warnoptions: #Pixel afronding waarschuwingen..
     import warnings
     warnings.simplefilter("ignore")
 
@@ -279,22 +278,27 @@ class Car(object):
     def handle_user_input(self, keys, walls):
         if check_rect_collision(self.rect, walls) == -1 and self.can_drive:
             if keys[pg.K_LEFT]:
-                self.drive_left()
+                self.drive_left(8)
             if keys[pg.K_RIGHT]:
-                self.drive_right()
+                self.drive_right(-8)
             if keys[pg.K_UP]:
-                self.drive_forward()
+                self.drive_forward(1)
             if keys[pg.K_DOWN]:
-                self.brake()
+                self.brake(-1)
             self.set_new_position()
         else:
             self.is_crashed = True
             self.explosion_sheet.update()
             screen.blit(self.explosion_sheet.sheet, (self.x - self.explosion_sheet.width/2, self.y - self.explosion_sheet.height), self.explosion_sheet.spriteArea)
         
-    def draw_drive_trail(self):
+    def draw_drive_trail(self, car_type):
         for trail_point in self.drive_trail:
-            pg.draw.rect(screen, (255,255,255), [trail_point[0], trail_point[1], 2, 2])
+            if car_type == "best":
+                pg.draw.rect(screen, (255,255,255), [trail_point[0], trail_point[1], 2, 2])
+            if car_type == "saved":
+                pg.draw.rect(screen, (0,0,0), [trail_point[0], trail_point[1], 2, 2])
+            if car_type == "user":
+                pg.draw.rect(screen, (240,240,0), [trail_point[0], trail_point[1], 2, 2])
 
     def draw_line_to_next_checkpoint(self):  
         pg.draw.line(screen, (0,255,0), (self.x, self.y), (self.next_checkpoint.focus_point[0], self.next_checkpoint.focus_point[1]), 2)
@@ -350,8 +354,11 @@ class Game(object):
         self.user_car.set_and_draw_sonar_arms(nr_arms = 10, arms_scan_range = 180, number_of_points = 30, distance = 15, size = 2, add_back_arm = True, walls = self.level.walls)
         self.user_car.rotate_blit()
 
+        if self.user_car.current_checkpoint_nr == 7:
+            print(self.user_car.nr_actions_taken)
+
         user_car.drive_trail.append([user_car.x, user_car.y]) #to be removed
-        user_car.draw_drive_trail() #to be removed
+        user_car.draw_drive_trail("user") #to be removed
 
 
 class Genectic_game(Game):
@@ -360,6 +367,7 @@ class Genectic_game(Game):
         self.weights_directory = 'jaap_game/weights/'+str(time.time())+'/'
         self.best_fitness = []
         self.ga = GA(self.level.car_spawn_x, self.level.car_spawn_y)
+        self.saved_ai_car = get_saved_car(GenecticCar("car8", self.ga.car_spawn_x, self.ga.car_spawn_y))
         self.draw_crashed_and_idling_cars = draw_crashed_and_idling_cars
         self.print_fastest_car_info = print_fastest_car_info
         self.draw_car_fitness = False
@@ -372,8 +380,8 @@ class Genectic_game(Game):
         self.best_time_alive = []
         self.current_best_car = self.ga.fastest_car #todo
 
-    def handle_cars(self, cars, walls, checkpoints):
-        for car in self.ga.cars:
+    def handle_cars(self, cars):
+        for car in cars:
 
             car.set_fitness()
             if not car.is_crashed and not car.is_finished or car.is_best or self.draw_crashed_and_idling_cars:
@@ -393,7 +401,11 @@ class Genectic_game(Game):
             
             if car.car_type == CarType.BEST:
                 self.current_best_car = car
-                car.draw_drive_trail()
+                car.draw_drive_trail("best")
+                car.draw_line_to_next_checkpoint()
+
+            if car.car_type == CarType.SAVED:
+                car.draw_drive_trail("saved")
                 car.draw_line_to_next_checkpoint()
     
     def run(self):
@@ -421,10 +433,10 @@ class Genectic_game(Game):
             self.ticks += 1
             self.game_time = self.ticks * (self.delay / 1000)
             
-            self.handle_cars(self.ga.cars, self.level.walls, self.level.checkpoints)
-            #self.handle_cars([saved_ai_car]) #todo
+            self.handle_cars(self.ga.cars)
+            self.handle_cars([self.saved_ai_car]) #todo
 
-            #self.handle_user_car(pg.key.get_pressed(), self.user_car, self.level.walls)
+            self.handle_user_car(pg.key.get_pressed(), self.user_car, self.level.walls)
             
             self.handle_commands(pg.key.get_pressed())
 
@@ -432,53 +444,54 @@ class Genectic_game(Game):
 
             should_start_new_round = (self.game_time - self.game_start_time) > self.level.new_round_time or self.ga.all_cars_done_with_training or self.ga.number_finished > self.ga.pop_size/10 #or ga.fastest_car.is_finished or ga.fastest_car.is_crashed:
             if should_start_new_round:
-
-                self.ga.total_gens += 1
-                self.game_start_time = self.game_time
-
-                try:
-                    if self.best_fitness[-1] > self.best_fitness[-2] and self.ga.fastest_car.current_checkpoint_nr > 0: #self.fastest_finish_times[-1] < self.fastest_finish_times[-2] or 
-                        self.drive_trail_hist.append(self.current_best_car.drive_trail)
-                except IndexError:
-                    pass
-
-                if self.ga.fastest_car.finish_time > 0:
-                    self.fastest_finish_times.append(round(self.ga.fastest_car.finish_time,5))
-                else:
-                    self.fastest_finish_times.append(np.nan)
-
-                self.best_fitness.append(round(self.ga.fastest_car.fitness,8))
-                self.best_direction_hist.append(self.ga.fastest_car.direction_hist)
-                self.best_time_alive.append(self.ga.fastest_car.nr_actions_taken)
-
-                save_fastest_car_to_file(self.ga, self.weights_directory)
-
-                self.user_car = Car("car4", self.level.car_spawn_x, self.level.car_spawn_y)
-                # self.saved_ai_car = GenecticCar("car8", self.car_spawn_x, self.car_spawn_y) #todo
-                # self.saved_ai_car = get_saved_car_brain(self.saved_ai_car) #todo
-
-                self.ga.new_pop = []
-                new_cars = self.ga.get_new_gen()
-                self.ga.cars = new_cars
-                
-                if self.print_fastest_car_info:
-                    print("id: " + str(self.ga.fastest_car.id))
-                    print("checkpoints: " + str(self.ga.fastest_car.checkpoint_times))
-                    print("dist to next: " + str(self.ga.fastest_car.dist_to_next_checkpoint))
-                    print("next checkpoint: " + str(self.ga.fastest_car.next_checkpoint.nr))
-                    print("curr checkpoint: " + str(self.ga.fastest_car.current_checkpoint_nr))
-                    print("velocity on crash/finish: " + str(self.ga.fastest_car.vel))
-                    print("fitness: " + str(self.ga.fastest_car.fitness))
-                    print("round: " + str(self.ga.total_gens))
-                    print("trail length: " + str(len(self.ga.fastest_car.drive_trail)))
-                    print("nr actions taken: " + str(self.ga.fastest_car.nr_actions_taken))
-                    print("------------")
+                self.start_new_round()
 
             if self.draw_stats:
                 self.draw_all_stats()
 
             pg.display.flip()
         pg.quit()
+
+    def start_new_round(self):
+        self.ga.total_gens += 1
+        self.game_start_time = self.game_time
+
+        try:
+            if self.best_fitness[-1] > self.best_fitness[-2] and self.ga.fastest_car.current_checkpoint_nr > 0: #self.fastest_finish_times[-1] < self.fastest_finish_times[-2] or 
+                self.drive_trail_hist.append(self.current_best_car.drive_trail)
+        except IndexError:
+            pass
+
+        if self.ga.fastest_car.finish_time > 0:
+            self.fastest_finish_times.append(round(self.ga.fastest_car.finish_time,5))
+        else:
+            self.fastest_finish_times.append(np.nan)
+
+        self.best_fitness.append(round(self.ga.fastest_car.fitness,8))
+        self.best_direction_hist.append(self.ga.fastest_car.direction_hist)
+        self.best_time_alive.append(self.ga.fastest_car.nr_actions_taken)
+
+        save_fastest_car_to_file(self.ga, self.weights_directory)
+
+        self.user_car = Car("car4", self.level.car_spawn_x, self.level.car_spawn_y)
+        self.saved_ai_car = get_saved_car(GenecticCar("car8", self.ga.car_spawn_x, self.ga.car_spawn_y))
+        
+        self.ga.new_pop = []
+        new_cars = self.ga.get_new_gen()
+        self.ga.cars = new_cars
+        
+        if self.print_fastest_car_info:
+            print("id: " + str(self.ga.fastest_car.id))
+            print("checkpoints: " + str(self.ga.fastest_car.checkpoint_times))
+            print("dist to next: " + str(self.ga.fastest_car.dist_to_next_checkpoint))
+            print("next checkpoint: " + str(self.ga.fastest_car.next_checkpoint.nr))
+            print("curr checkpoint: " + str(self.ga.fastest_car.current_checkpoint_nr))
+            print("velocity on crash/finish: " + str(self.ga.fastest_car.vel))
+            print("fitness: " + str(self.ga.fastest_car.fitness))
+            print("round: " + str(self.ga.total_gens))
+            print("trail length: " + str(len(self.ga.fastest_car.drive_trail)))
+            print("nr actions taken: " + str(self.ga.fastest_car.nr_actions_taken))
+            print("------------")
 
     def draw_all_stats(self):
         text = "Gen: "+str(self.ga.total_gens)
@@ -528,11 +541,19 @@ class Genectic_game(Game):
 
         text = "Commands: (R)andoms, (C)rossovers, (B)est, (M)utations - (S)tats - (F)itness S(l)omo (D)riving_trails draw_(w)orld " #todo
         screen.blit(self.stats_font.render(text, 1, pg.color.THECOLORS["black"]),(510,755))
+
         # text = "Clicked car " +  " vel " + str(self.clicked_car.vel) + " fit " + str(self.clicked_car.fitness)
         # screen.blit(self.stats_font.render(text, 1, pg.color.THECOLORS["black"]),(510,770))
         
+        screen.blit(pg.image.load("jaap_game/images/cars/car4.png"), (700,400))
+        pg.draw.line(screen, (0,0,0), (730, 430), (730, 430 - (self.user_car.vel*5)), 12)
+        
         screen.blit(pg.image.load("jaap_game/images/cars/car6.png"), (600,400))
-        pg.draw.line(screen, (0,0,255), (650, 430), (650, 430 - (self.current_best_car.vel*8)), 10) #here
+        pg.draw.line(screen, (0,0,0), (630, 430), (630, 430 - (self.current_best_car.vel*5)), 12)
+
+        screen.blit(pg.image.load("jaap_game/images/cars/car8.png"), (500,400))
+        pg.draw.line(screen, (0,0,0), (530, 430), (530, 430 - (self.saved_ai_car.vel*5)), 12)
+            
 
     def handle_commands(self, keys):
         if keys[pg.K_s]:
@@ -652,14 +673,14 @@ class NeuralNetworkGenetic(object):
         ok = []
         for k in x[0]:
             ok.append([k])
-        x_norm = preprocessing.StandardScaler().fit_transform(ok)
+        x_norm = StandardScaler().fit_transform(ok)
         okk = []
         for k in x_norm:
             okk.append(k[0])
 
-        self.layer1 = norm(np.dot(okk, self.weights1))
-        self.layer2 = norm(np.dot(self.layer1, self.weights2))
-        self.output = norm(np.dot(self.layer2, self.weights3))
+        self.layer1 = tanh(np.dot(okk, self.weights1))
+        self.layer2 = tanh(np.dot(self.layer1, self.weights2))
+        self.output = tanh(np.dot(self.layer2, self.weights3))
         return self.output
 
 class NeuralNetwork(object):
@@ -1205,7 +1226,7 @@ class GA(object):
         if len(self.fastest_car.checkpoint_times) > 3:
             weight_change = 0.2
         if reached_finish:
-            weight_change = 0.05
+            weight_change = 0.1
 
         for i in range(len(fast_car_brain_weights1)):
             weight = fast_car_brain_weights1[i]

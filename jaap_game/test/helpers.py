@@ -8,8 +8,9 @@ from math import acos, degrees, sqrt
 from sklearn.preprocessing import StandardScaler
 import pickle
 import math
+from enums import CarType
 
-def norm(x):
+def tanh(x):
     np.asarray(x)
     return np.tanh(x)
 
@@ -43,7 +44,6 @@ def show_stats_plot(best_fitness, fastest_finish_times, fastest_car_direction_hi
         axs[1].xlabel = "Generation"
         axs[1].ylabel = "best_fitness"
 
-
         axs[2].plot(range(len(best_times_alive)), best_times_alive, label = "best_times_alive")
         axs[2].xlabel = "Generation"
         axs[2].ylabel = "best_times_alive"
@@ -71,8 +71,8 @@ def save_fastest_car_to_file(ga, weights_directory):
     if not os.path.exists(weights_directory):
         os.makedirs(weights_directory)
 
-    filename = 'gen=' + str(ga.total_gens) + ' finish_time=' + str(ga.fastest_car.finish_time) + ' car_id=' + str(ga.fastest_car.id)
-    outfile = open(weights_directory+filename,'wb')
+    filename = weights_directory+'gen=' + str(ga.total_gens) + ' finish_time=' + str(ga.fastest_car.finish_time) + ' car_id=' + str(ga.fastest_car.id)
+    outfile = open(filename,'wb')
     pickle.dump(ga.fastest_car.brain,outfile)
     outfile.close()
 
@@ -86,12 +86,18 @@ def save_fastest_car_to_file(ga, weights_directory):
 
     # text_file.close()
 
-def get_saved_car_brain(saved_car):
-    with open('jaap_game/weights/best/gen=144 time=5.680000000000064 id=446450992.txt', 'r') as file:
-        saved_brain_to_use = file.read().replace('\n', '')
-    saved_car.brain.weights1 = np.array(eval(saved_brain_to_use.split('next_weight')[0]))
-    saved_car.brain.weights2 = np.array(eval(saved_brain_to_use.split('next_weight')[1]))
-    return saved_car
+def get_saved_car(car):
+    filename = 'jaap_game/weights/best/gen=878 finish_time=1.903 car_id=572207552'
+    infile = open(filename,'rb')
+    brain = pickle.load(infile)
+    infile.close()
+
+    car.brain.weights1 = brain.weights1.reshape(7, 9)
+    car.brain.weights2 = brain.weights2.reshape(9, 6)
+    car.brain.weights3 = brain.weights3.reshape(6, 2)
+
+    car.car_type = CarType.SAVED
+    return car
 
 def check_rect_collision(rect, objects):
         for i in range(len(objects)):
