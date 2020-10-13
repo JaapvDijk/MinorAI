@@ -13,7 +13,7 @@ from enums import CarType
 def tanh(x):
     np.asarray(x)
     return np.tanh(x)
-
+    
 def sigmoid(x):
         return 1/(1+np.exp(-x))
 
@@ -86,8 +86,8 @@ def save_fastest_car_to_file(ga, weights_directory):
 
     # text_file.close()
 
-def get_saved_car(car):
-    filename = 'jaap_game/weights/best/gen=878 finish_time=1.903 car_id=572207552'
+def get_saved_car(car, filename):
+    # filename = 'jaap_game/weights/best/gen=878 finish_time=1.903 car_id=572207552'
     infile = open(filename,'rb')
     brain = pickle.load(infile)
     infile.close()
