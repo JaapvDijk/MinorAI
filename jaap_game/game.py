@@ -535,7 +535,7 @@ class Genectic_game(Game):
         screen.blit(self.stats_font.render("Random", 1, pg.color.THECOLORS["black"]),(443,705))
 
         pg.draw.line(screen, (0,0,0), (60, 750), (80, 750), 2)
-        screen.blit(self.stats_font.render("Best possible path (5 velocity)", 1, pg.color.THECOLORS["black"]),(90,740))
+        screen.blit(self.stats_font.render("Fastest achieved paths", 1, pg.color.THECOLORS["black"]),(90,740))
 
         pg.draw.rect(screen, (50,50,50), [60, 775, 2, 2])
         pg.draw.rect(screen, (100,100,100), [65, 775, 2, 2])
