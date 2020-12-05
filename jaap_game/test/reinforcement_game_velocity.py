@@ -86,14 +86,13 @@ class Car():
 
         self.colour = pg.color.THECOLORS["black"]
         
-        self.image = pg.image.load("images/cars/"+car_img+".png")
-        self.orginalImage = pg.image.load("images/cars/"+car_img+".png")
+        self.image = pg.image.load("jaap_game/images/cars/"+car_img+".png")
+        self.orginalImage = pg.image.load("jaap_game/images/cars/"+car_img+".png")
 
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
-
-        #arms
+        
         self.arms = []
 
         left_arm = Arm()
