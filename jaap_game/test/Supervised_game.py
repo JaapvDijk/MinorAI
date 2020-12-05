@@ -70,8 +70,8 @@ class Car():
 
         self.colour = pg.color.THECOLORS["black"]
         
-        self.image = pg.image.load("images/cars/"+car_img+".png")
-        self.orginalImage = pg.image.load("images/cars/"+car_img+".png")
+        self.image = pg.image.load("jaap_game/images/cars/"+car_img+".png")
+        self.orginalImage = pg.image.load("jaap_game/images/cars/"+car_img+".png")
 
         self.rect = self.image.get_rect()
         self.rect.x = x
@@ -104,7 +104,7 @@ class Car():
         training_target_data = list(zip(self.training_results_arm_0, self.training_results_arm_1, self.training_results_arm_2, self.training_results_arm_3, self.training_results_arm_4, self.training_results_velocity,
         self.target_data))
         df = pd.DataFrame(training_target_data, columns = ['training_results_arm_0', 'training_results_arm_1', 'training_results_arm_2', 'training_results_arm_3', 'training_results_arm_4', 'training_results_velocity', 'target_data']) 
-        df.to_csv("wanne.csv", index=False)
+        df.to_csv("jaap_game/test/train_data.csv", index=False)
     
     def load_train(self): 
         generic = lambda x: ast.literal_eval(x)
@@ -113,10 +113,10 @@ class Car():
         }
         #dupli = pd.read_csv('wanne.csv').drop_duplicates()
         #dupli.to_csv("wanne.csv", index=False)
-        return pd.read_csv('wanne.csv', converters=conv)
+        return pd.read_csv('jaap_game/test/train_data.csv', converters=conv)
     
     def train(self):
-        df = pd.read_csv('wanne.csv')
+        df = pd.read_csv('jaap_game/test/train_data.csv')
         self.brain.train(df)
     
     def record_train(self, collided_arms):

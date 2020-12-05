@@ -21,14 +21,14 @@ screen_width = 1300
 screen_height = 800
 screen = pg.display.set_mode((screen_width, screen_height)) 
 
-class Wall():
+class Wall(object):
     def __init__(self, x, y, width, height, colour = pg.color.THECOLORS["darkgray"]):
         self.surf = pg.Surface((int(width), int(height)))
         self.rect = self.surf.get_rect()
         self.rect.center = x, y
         self.colour = colour
 
-class Checkpoint():
+class Checkpoint(object):
     def __init__(self, x, y, width, height, nr, focus_off_x, focus_off_y, colour = (110,125,110)):
         self.x = x
         self.y = y
@@ -40,7 +40,7 @@ class Checkpoint():
 
         self.focus_point = (self.x + focus_off_x, self.y + focus_off_y)
 
-class Arm():
+class Arm(object):
     def __init__(self, points, angle):
         self.points = points
         self.angle_from_car = angle
@@ -355,14 +355,11 @@ class Genectic_game(Game):
         self.draw_car_fitness = False
         self.draw_stats = True
         self.draw_map = True
-        self.clicked_car = GenecticCar("car6", 0, 0)
         self.drive_trail_hist = [[[0,0]]]
         self.best_direction_hist = []
         self.fastest_finish_times = []
         self.best_time_alive = []
-        self.current_best_car = self.ga.fastest_car #todo
-
-        # self.ga.cars.append(self.saved_cars[0])
+        self.current_best_car = self.ga.fastest_car
 
     def load_saved_cars(self):
         car_filenames = ["jaap_game/weights/best/gen=1175 finish_time=1.836 car_id=1494558612728",
@@ -404,9 +401,7 @@ class Genectic_game(Game):
 
             if car.car_type == CarType.SAVED:
                 car.draw_drive_trail("saved")
-
-            
-    
+ 
     def run(self):
         run = True
         while run:
@@ -418,12 +413,6 @@ class Genectic_game(Game):
                     run = False
  
             screen.fill((85,96,91))
-
-            # wall = self.level.walls[4]
-            # if (self.ticks % 199) >= 100:
-            #     self.level.walls[4] = Wall(wall.rect.center[0]-3,wall.rect.center[1]-3,200,200)
-            # if (self.ticks % 199) < 100:
-            #     self.level.walls[4] = Wall(wall.rect.center[0]+3,wall.rect.center[1]+3,200,200)
 
             #"Best" driving line
             # trail_img = pg.image.load("jaap_game/images/best_line.png")
@@ -547,9 +536,6 @@ class Genectic_game(Game):
         text = "Commands: (R)andoms, (C)rossovers, (B)est, (M)utations - (S)tats - (F)itness S(l)omo (D)riving_trails draw_(w)orld " #todo
         screen.blit(self.stats_font.render(text, 1, pg.color.THECOLORS["black"]),(510,755))
 
-        # text = "Clicked car " +  " vel " + str(self.clicked_car.vel) + " fit " + str(self.clicked_car.fitness)
-        # screen.blit(self.stats_font.render(text, 1, pg.color.THECOLORS["black"]),(510,770))
-        
         screen.blit(pg.image.load("jaap_game/images/cars/car4.png"), (700,400))
         pg.draw.line(screen, (0,0,0), (730, 430), (730, 430 - (self.user_car.vel*5)), 12)
         
@@ -559,7 +545,6 @@ class Genectic_game(Game):
         screen.blit(pg.image.load("jaap_game/images/cars/car8.png"), (500,400))
         pg.draw.line(screen, (0,0,0), (530, 430), (530, 430 - (self.saved_cars[0].vel*5)), 12)#
             
-
     def handle_commands(self, keys):
         if keys[pg.K_s]:
             show_stats_plot(self.best_fitness, self.fastest_finish_times, self.best_direction_hist, self.best_time_alive)
@@ -580,10 +565,6 @@ class Genectic_game(Game):
             self.ga.hide_driving_trail_history = not self.ga.hide_driving_trail_history
         if keys[pg.K_w]:
             self.draw_map = not self.draw_map
-        if pg.mouse.get_pressed()[0]:
-            mouse_pos = pg.mouse.get_pos()
-            clicked_car =  check_car_click_collision(mouse_pos, self.ga.cars)
-            self.clicked_car = self.ga.cars[clicked_car]
 
     def draw_drive_trail_hist(self):
         if not self.ga.hide_driving_trail_history:
@@ -598,7 +579,7 @@ class Genectic_game(Game):
                     for trail_point in trail:              
                         pg.draw.rect(screen, (colour_strengt,colour_strengt,colour_strengt), [trail_point[0], trail_point[1], 2, 2])
 
-class Sprite():
+class Sprite(object):
     def __init__(self, sheet, width, height, end, repeat = False):
         self.sheet = sheet
         self.width = width
@@ -650,164 +631,6 @@ class NeuralNetworkGenetic(object):
         self.layer2 = tanh(np.dot(self.layer1, self.weights2))
         self.output = tanh(np.dot(self.layer2, self.weights3))
         return self.output
-
-class NeuralNetwork(object):
-    def __init__(self):
-        self.x = 0
-        self.y = 0
-        self.b1 = np.random.rand(1,10)
-        self.b2 = np.random.rand(1,5)
-        self.w1 = np.random.rand(6,10)
-        self.w2 = np.random.rand(10,5)
-
-    def calculate_sigmoid(self, result):
-        sig_result = 1/(1+np.exp(-result))
-        return sig_result
-    
-    def test_sample(self,x):
-        self.x = np.array([x])
-        self.feed_forward()
-        return self.outcome
-        
-    def feed_forward(self):
-        self.layer1 = self.calculate_sigmoid(np.dot(self.x, self.w1) + self.b1)
-        self.outcome = self.calculate_sigmoid(np.dot(self.layer1, self.w2) + self.b2)
-
-    def update_w2(self):
-        dloss_doutcomesig = 2 *(self.y-self.outcome)
-        doutcomesig_doutcome = self.outcome*(1-self.outcome)
-        doutcome_dw2 = self.layer1
-        dloss_dw2 = np.dot(doutcome_dw2.T, (dloss_doutcomesig * doutcomesig_doutcome))
-
-        self.w2 += dloss_dw2
-    
-    def update_b2(self):
-        dloss_doutcomesig = 2 *(self.y-self.outcome)
-        doutcomesig_doutcome = self.outcome*(1-self.outcome)
-        doutcome_db2 = 1
-        dloss_db2 = dloss_doutcomesig * doutcomesig_doutcome
-
-        self.b2 += 0.1 * dloss_db2
-
-    def update_w1(self):
-        dloss_doutcomesig = 2 *(self.y-self.outcome)
-
-        doutcomesig_doutcome = self.outcome*(1-self.outcome)
-        doutcome_dlayer1sig = self.w2
-        dlayer1sig_dlayer1 = self.layer1 *(1-self.layer1)
-        dlayer1_dw1 = self.x
-        dloss_dw1 = np.dot(dlayer1_dw1.T, (np.dot(dloss_doutcomesig * doutcomesig_doutcome, doutcome_dlayer1sig.T) * dlayer1sig_dlayer1)) 
-        
-        self.w1 += dloss_dw1
-    
-    def update_b1(self):
-        dloss_doutcomesig = 2 *(self.y-self.outcome)
-        doutcomesig_doutcome = self.outcome*(1-self.outcome)
-        doutcome_dlayer1sig = self.w2
-        dlayer1sig_dlayer1 = self.layer1 *(1-self.layer1)
-        dlayer1_db1 = 1
-        dloss_db1 = np.dot(dloss_doutcomesig * doutcomesig_doutcome, doutcome_dlayer1sig.T) * dlayer1sig_dlayer1
-
-        self.b1 += 0.1 * dloss_db1
-
-    def feed_backward(self):
-        self.update_w2()
-        self.update_b2()
-        self.update_w1()
-        self.update_b1()
-    
-    def train(self, samples, outputs):
-        for episodes in range(100):
-            for i in range(len(samples)):
-                self.x = np.array([samples[i]])
-                self.y = np.array([outputs[i]])
-                self.feed_forward()
-                self.feed_backward()
-
-class SupervisedGame(Game):
-    def __init__(self, level, delay, hide_car_arms):
-        Game.__init__(self,level, delay, hide_car_arms)
-        self.df = pd.DataFrame(columns=['sensors','action'])
-        self.nn = NeuralNetwork()
-        self.car = SupervisedCar("car8", self.level.car_spawn_x, self.level.car_spawn_y)
-    
-    def check_action(self,action
-    ):
-        if action[pg.K_RIGHT]:
-            return np.array([1,0,0,0,0])
-        elif action[pg.K_LEFT]:
-            return np.array([0,1,0,0,0])
-        elif action[pg.K_UP]:
-            return np.array([0,0,1,0,0])
-        elif action[pg.K_DOWN]:
-            return np.array([0,0,0,1,0])
-        else:
-            return np.array([0,0,0,0,1])
-    
-    def get_sensors(self,arms):
-        sensors = []
-        for arm in arms:
-            sensors.append(arm.arm_length)
-        sensors = np.asarray(sensors)
-        return sensors
-        
-    def record_train_data(self,arms,action):
-        sensors = self.get_sensors(arms)
-        action = self.check_action(action)
-        data = {'sensors':sensors,'action':action}
-        self.df = self.df.append(data,ignore_index=True)
-    
-    def from_np_array(self,array_string):
-        array_string = ','.join(array_string.replace('[ ', '[').split())
-        return np.array(ast.literal_eval(array_string))
-    
-    def train(self):
-
-        data = pd.read_csv("train_data.csv", converters={'sensors': self.from_np_array, 'action': self.from_np_array})
-        self.nn.train(data['sensors'], data['action'])
-            
-    def train_run(self):
-        run = True
-        while run:
-            pg.time.delay(self.delay)
-            for event in pg.event.get():
-                if event.type == pg.QUIT:
-                    self.df.to_csv("train_data.csv", encoding='utf-8', index=False)
-                    run = False
-                    
-            screen.fill((85,96,91))
-
-            self.draw_walls()
-            self.draw_checkpoints()
-            self.draw_finish(tile_rows = 2)
-            #printprint(pg.key.get_pressed())
-            
-            self.handle_user_car(pg.key.get_pressed(), self.user_car, self.level.walls)
-            self.record_train_data(self.user_car.arms, pg.key.get_pressed())
-
-            pg.display.flip()
-        pg.quit()
-    
-    def run(self):
-        run = True
-        while run:
-            pg.time.delay(self.delay)
-            for event in pg.event.get():
-                if event.type == pg.QUIT:
-                    run = False
-                    
-            screen.fill((85,96,91))
-
-            self.draw_walls()
-            self.draw_checkpoints()
-            self.draw_finish(tile_rows = 2)
-            #printprint(pg.key.get_pressed())
-            self.car.set_and_draw_sonar_arms(nr_arms = 6, arms_scan_range = 180, number_of_points = 9, distance = 50, size = 4, add_back_arm = True, walls = self.level.walls)
-            action = self.nn.test_sample(self.get_sensors(self.car.arms))
-            self.car.handle_user_input(action, self.level.walls)
-
-            pg.display.flip()
-        pg.quit()
 
 class GenecticCar(Car):
     def __init__(self, car_img, car_spawn_x, car_spawn_y):
@@ -893,53 +716,6 @@ class GenecticCar(Car):
         self.x = self.car_spawn_x
         self.y = self.car_spawn_y
         self.angle = 90
-
-class SupervisedCar(Car):
-    def __init__(self, car_img, car_spawn_x, car_spawn_y):
-        Car.__init__(self, car_img, car_spawn_x, car_spawn_y)
-    def handle_user_input(self, action, walls):
-        if check_rect_collision(self.rect, walls) == -1:
-            print(action)
-            if np.array_equal(action, np.array([1,0,0,0,0])):
-                self.drive_right()
-            elif np.array_equal(action, np.array([0,1,0,0,0])):
-                self.drive_left()
-            elif np.array_equal(action, np.array([0,0,1,0,0])):
-                self.drive_forward()
-            elif np.array_equal(action, np.array([0,0,0,1,0])):
-                self.brake()       
-            else:
-                self.glide()
-                print(1)
-            self.set_new_position()
-
-        else:
-            self.explosion_sheet.update()
-            screen.blit(self.explosion_sheet.sheet, (self.x - self.explosion_sheet.width/2, self.y - self.explosion_sheet.height), self.explosion_sheet.spriteArea)
-
-class ReinforcementCar(Car):
-    def rl_drive(self, action, walls):
-        self.rect.center = self.x, self.y
-        if check_rect_collision(self.rect, walls) != -1 or not self.can_drive:
-            self.is_crashed = True
-            return
-        if action == "forward":
-            self.drive_forward()
-        if action == "brake":
-            self.brake()
-        if action == "right":
-            self.drive_right()
-        if action == "left":
-            self.drive_left()
-        # if action == "nothing":
-        #    self.glide()
-        self.set_new_position()
-    
-    def handle(self, action, walls, checkpoints, game_time, game_start_time):
-        self.rl_drive(action,walls)
-        self.set_current_checkpoint_and_distance(checkpoints, game_time, game_start_time)
-        self.set_and_draw_sonar_arms(nr_arms = 5, arms_scan_range = 180, number_of_points = 20, distance = 20, size = 4, add_back_arm = True, walls = walls)
-        self.rotate_blit()  
 
 class GA(object):
     def __init__(self, car_spawn_x, car_spawn_y):
